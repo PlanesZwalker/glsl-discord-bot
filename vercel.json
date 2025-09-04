@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/test.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "public/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/robots.txt",
+      "dest": "/public/robots.txt"
+    },
+    {
+      "src": "/security.txt",
+      "dest": "/public/security.txt"
+    },
+    {
+      "src": "/test",
+      "dest": "/api/test.js"
+    },
+    {
+      "src": "/discord",
+      "dest": "/api/test.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/api/test.js"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}

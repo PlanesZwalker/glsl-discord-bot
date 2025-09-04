@@ -1,0 +1,55 @@
+# Robots.txt pour GLSL Discord Bot API
+# Protection et directives pour les robots d'indexation
+
+# User-agent pour tous les robots
+User-agent: *
+
+# Autoriser l'accès à l'endpoint Discord principal
+Allow: /discord
+Allow: /api/discord
+
+# Bloquer l'accès aux dossiers sensibles
+Disallow: /src/
+Disallow: /node_modules/
+Disallow: /logs/
+Disallow: /data/
+Disallow: /output/
+Disallow: /.env
+Disallow: /package.json
+Disallow: /vercel.json
+
+# Bloquer l'accès aux fichiers de configuration
+Disallow: /*.js
+Disallow: /*.json
+Disallow: /*.md
+Disallow: /*.txt
+
+# Autoriser l'accès aux endpoints publics
+Allow: /health
+Allow: /bot
+Allow: /terms
+Allow: /privacy
+Allow: /verify
+
+# Sitemap (optionnel)
+# Sitemap: https://glsl-discord-msiux5xag-annjs-projects.vercel.app/sitemap.xml
+
+# Crawl-delay pour éviter la surcharge
+Crawl-delay: 10
+
+# Instructions spéciales pour Discord
+User-agent: Discordbot
+Allow: /
+Crawl-delay: 1
+
+# Instructions pour les bots de sécurité
+User-agent: securitybot
+Disallow: /
+
+# Instructions pour les scrapers
+User-agent: *bot
+Disallow: /
+
+# Instructions pour les outils de test
+User-agent: *test*
+Disallow: /

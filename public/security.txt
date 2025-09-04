@@ -1,0 +1,26 @@
+# Security.txt pour GLSL Discord Bot
+# Fichier de politique de sécurité
+
+# Contact de sécurité
+Contact: mailto:security@example.com
+
+# Expiration de la politique
+Expires: 2025-12-31T23:59:59.000Z
+
+# Langues supportées
+Preferred-Languages: fr, en
+
+# Politique de divulgation
+Policy: https://glsl-discord-msiux5xag-annjs-projects.vercel.app/security-policy
+
+# Canary (optionnel)
+Canary: https://glsl-discord-msiux5xag-annjs-projects.vercel.app/.well-known/security.txt
+
+# Hachage de la clé PGP (optionnel)
+# PGP: https://glsl-discord-msiux5xag-annjs-projects.vercel.app/pgp-key.txt
+
+# Accusé de réception
+Acknowledgments: https://glsl-discord-msiux5xag-annjs-projects.vercel.app/acknowledgments
+
+# HIR (Hiring)
+Hiring: https://glsl-discord-msiux5xag-annjs-projects.vercel.app/hiring

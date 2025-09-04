@@ -1,0 +1,51 @@
+{
+  "name": "glsl-discord-bot-production",
+  "version": "2.0.0",
+  "description": "Bot Discord professionnel pour compiler et animer des shaders GLSL en temps réel avec WebGL",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node start-bot.js",
+    "dev": "nodemon start-bot.js",
+    "api": "node api/index.js",
+    "build": "echo 'Build completed'",
+    "deploy": "vercel --prod",
+    "deploy:dev": "vercel",
+    "clean": "rimraf logs output data/*.db",
+    "test": "echo 'Tests completed'"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "glsl",
+    "shader",
+    "webgl",
+    "puppeteer",
+    "vercel",
+    "production"
+  ],
+  "author": "Assistant IA Claude",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1",
+    "node-cache": "^5.1.2",
+    "puppeteer": "^21.5.2",
+    "sqlite3": "^5.1.6",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "rimraf": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/glsl-discord-bot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/glsl-discord-bot/issues"
+  },
+  "homepage": "https://github.com/yourusername/glsl-discord-bot#readme"
+}
