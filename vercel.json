@@ -44,10 +44,5 @@
   ],
   "env": {
     "NODE_ENV": "production"
-  },
-  "functions": {
-    "api/discord-simple.js": {
-      "maxDuration": 10
-    }
   }
 }
