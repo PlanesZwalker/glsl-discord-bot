@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/discord-simple.js",
+      "src": "api/discord-ultra.js",
       "use": "@vercel/node"
     },
     {
@@ -21,25 +21,25 @@
     },
     {
       "src": "/discord",
-      "dest": "/api/discord-simple.js",
+      "dest": "/api/discord-ultra.js",
       "headers": {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "*"
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, X-Signature-Ed25519, X-Signature-Timestamp"
       }
     },
     {
-      "src": "/discord-public",
-      "dest": "/api/discord-simple.js",
+      "src": "/discord-ultra",
+      "dest": "/api/discord-ultra.js",
       "headers": {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "*"
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, X-Signature-Ed25519, X-Signature-Timestamp"
       }
     },
     {
       "src": "/(.*)",
-      "dest": "/api/discord-simple.js"
+      "dest": "/api/discord-ultra.js"
     }
   ],
   "env": {
