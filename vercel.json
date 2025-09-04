@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/test.js",
+      "src": "api/discord-simple.js",
       "use": "@vercel/node"
     },
     {
@@ -20,19 +20,34 @@
       "dest": "/public/security.txt"
     },
     {
-      "src": "/test",
-      "dest": "/api/test.js"
+      "src": "/discord",
+      "dest": "/api/discord-simple.js",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "*"
+      }
     },
     {
-      "src": "/discord",
-      "dest": "/api/test.js"
+      "src": "/discord-public",
+      "dest": "/api/discord-simple.js",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "*"
+      }
     },
     {
       "src": "/(.*)",
-      "dest": "/api/test.js"
+      "dest": "/api/discord-simple.js"
     }
   ],
   "env": {
     "NODE_ENV": "production"
+  },
+  "functions": {
+    "api/discord-simple.js": {
+      "maxDuration": 10
+    }
   }
 }
