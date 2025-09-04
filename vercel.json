@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/discord-ultra.js",
+      "src": "api/discord-ping.js",
       "use": "@vercel/node"
     },
     {
@@ -21,25 +21,15 @@
     },
     {
       "src": "/discord",
-      "dest": "/api/discord-ultra.js",
-      "headers": {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, X-Signature-Ed25519, X-Signature-Timestamp"
-      }
+      "dest": "/api/discord-ping.js"
     },
     {
-      "src": "/discord-ultra",
-      "dest": "/api/discord-ultra.js",
-      "headers": {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, X-Signature-Ed25519, X-Signature-Timestamp"
-      }
+      "src": "/ping",
+      "dest": "/api/discord-ping.js"
     },
     {
       "src": "/(.*)",
-      "dest": "/api/discord-ultra.js"
+      "dest": "/api/discord-ping.js"
     }
   ],
   "env": {
