@@ -1,0 +1,15 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+README.md
+.env
+.vercel
+*.log
+logs/
+output/
+data/*.db
+test/
+tests/
+docs/
+screenshots/
