@@ -4,6 +4,18 @@ const nextConfig = {
   images: {
     domains: ['cdn.discordapp.com', 'discord.com'],
   },
+  // Exclure les GIFs du bundle serverless (ils sont servis depuis GitHub raw)
+  experimental: {
+    outputFileTracingExcludes: {
+      '*': [
+        '../docs/gifs/**/*',
+        'docs/gifs/**/*',
+        '../data/**/*',
+        '../output/**/*',
+        '../cache/**/*',
+      ],
+    },
+  },
   env: {
     NEXTAUTH_URL: process.env.NEXTAUTH_URL || 'http://localhost:3000',
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
