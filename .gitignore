@@ -98,6 +98,13 @@ Thumbs.db
 # Local test files (ne pas pousser vers le remote)
 tests/
 
+# Tests dans web (Next.js)
+web/__tests__/
+web/**/*.test.ts
+web/**/*.test.tsx
+web/**/*.spec.ts
+web/**/*.spec.tsx
+
 # Documentation Markdown files (except README.md and PROJECT_EXPLANATION.md)
 *.md
 !README.md
