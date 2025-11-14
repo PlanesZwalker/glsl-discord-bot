@@ -4784,7 +4784,88 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             
                             // Liste de TOUTES les stratégies à tester
                             const strategies = [
-                                // STRATÉGIE 1: Utiliser directement les AttachmentBuilder originaux avec embed minimal - PRIORITÉ
+                                // STRATÉGIE 1: Double édition (workaround du bug Discord connu)
+                                // Bug Discord: Les images dans les embeds envoyés via webhooks ne s'affichent pas la moitié du temps
+                                // Solution: Éditer le message deux fois avec le même contenu force Discord à afficher l'image
+                                {
+                                    name: 'rest.patch_double_edit_workaround',
+                                    desc: 'Double édition avec AttachmentBuilder + embed minimal (workaround bug Discord)',
+                                    test: async () => {
+                                        const fileName = options.files[0]?.name || 'animation.gif';
+                                        const minimalEmbed = [{
+                                            image: { url: `attachment://${fileName}` },
+                                            color: embedsJson[0]?.color || 0x9B59B6
+                                        }];
+                                        const restPayload = {
+                                            embeds: minimalEmbed
+                                        };
+                                        
+                                        // 1ère édition avec l'embed et le fichier
+                                        await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
+                                            body: restPayload,
+                                            files: options.files
+                                        });
+                                        
+                                        // Attendre 500ms pour éviter le rate limit
+                                        await new Promise(resolve => setTimeout(resolve, 500));
+                                        
+                                        // 2ème édition avec le MÊME contenu (force Discord à afficher l'image)
+                                        await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
+                                            body: restPayload,
+                                            files: options.files
+                                        });
+                                    }
+                                },
+                                // STRATÉGIE 2: Utiliser attachments dans payload_json (format Discord API)
+                                // Spécifier explicitement les attachments dans le payload pour que Discord les garde
+                                {
+                                    name: 'rest.patch_with_attachments_payload',
+                                    desc: 'rest.patch avec attachments dans payload_json + embed minimal',
+                                    test: async () => {
+                                        const fileName = filePaths[0]?.name || 'animation.gif';
+                                        const minimalEmbed = [{
+                                            image: { url: `attachment://${fileName}` },
+                                            color: embedsJson[0]?.color || 0x9B59B6
+                                        }];
+                                        
+                                        // Préparer les fichiers en Buffer
+                                        const fileAttachments = await Promise.all(filePaths.map(async (fp, index) => {
+                                            let fileData;
+                                            if (fp.path && fs.existsSync(fp.path)) {
+                                                fileData = fs.readFileSync(fp.path);
+                                            } else if (fp.buffer) {
+                                                fileData = fp.buffer;
+                                            } else {
+                                                return null;
+                                            }
+                                            return {
+                                                attachment: fileData,
+                                                name: fp.name || fileName
+                                            };
+                                        }));
+                                        
+                                        const validFiles = fileAttachments.filter(f => f !== null);
+                                        if (validFiles.length === 0) {
+                                            throw new Error('Aucun fichier valide à envoyer');
+                                        }
+                                        
+                                        // Créer le payload avec attachments
+                                        const restPayload = {
+                                            embeds: minimalEmbed,
+                                            attachments: validFiles.map((file, index) => ({
+                                                id: index,
+                                                description: 'Shader animation',
+                                                filename: file.name
+                                            }))
+                                        };
+                                        
+                                        await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
+                                            body: restPayload,
+                                            files: validFiles
+                                        });
+                                    }
+                                },
+                                // STRATÉGIE 3: Utiliser directement les AttachmentBuilder originaux avec embed minimal
                                 // C'est le format que discord.js gère nativement et qui fonctionne le mieux
                                 {
                                     name: 'rest.patch_AttachmentBuilder_minimal_embed',
@@ -4809,7 +4890,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                         });
                                     }
                                 },
-                                // STRATÉGIE 2: Lire les fichiers en Buffer et les passer avec embed minimal
+                                // STRATÉGIE 4: Lire les fichiers en Buffer et les passer avec embed minimal
                                 {
                                     name: 'rest.patch_buffer_minimal_embed',
                                     desc: 'rest.patch avec fichiers lus en Buffer + embed minimal',
@@ -4852,7 +4933,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                         });
                                     }
                                 },
-                                // STRATÉGIE 3: Utiliser directement les AttachmentBuilder originaux (sans modification)
+                                // STRATÉGIE 5: Utiliser directement les AttachmentBuilder originaux (sans modification)
                                 {
                                     name: 'rest.patch_AttachmentBuilder_full_embed',
                                     desc: 'rest.patch avec AttachmentBuilder originaux + embed complet',
