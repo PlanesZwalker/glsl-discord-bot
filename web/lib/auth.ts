@@ -172,6 +172,22 @@ export const authOptions = {
       try {
         // If url is provided and is a valid callback URL, use it
         if (url) {
+          // Check if url contains callbackUrl parameter
+          try {
+            const urlObj = new URL(url, baseUrl)
+            const callbackUrlParam = urlObj.searchParams.get('callbackUrl')
+            if (callbackUrlParam) {
+              const decodedCallbackUrl = decodeURIComponent(callbackUrlParam)
+              const finalUrl = decodedCallbackUrl.startsWith('/') 
+                ? `${baseUrl}${decodedCallbackUrl}` 
+                : decodedCallbackUrl
+              console.log('✅ Redirecting to callbackUrl from URL:', finalUrl)
+              return finalUrl
+            }
+          } catch (e) {
+            // URL parsing failed, continue with normal logic
+          }
+          
           // Allows relative callback URLs (e.g., /dashboard)
           if (url.startsWith('/')) {
             const redirectUrl = `${baseUrl}${url}`

@@ -38,8 +38,8 @@ export function Hero() {
       if (currentPath === '/' && currentPath !== finalTarget) {
         hasRedirected.current = true
         console.log('✅ User authenticated, redirecting to:', finalTarget)
-        // Use router.replace for immediate redirect without adding to history
-        router.replace(finalTarget)
+        // Use router.push for immediate redirect
+        router.push(finalTarget)
         return
       }
     }
@@ -54,9 +54,9 @@ export function Hero() {
           const finalTarget = decoded.startsWith('/') ? decoded : `/${decoded}`
           hasRedirected.current = true
           console.log('✅ Session established, redirecting to:', finalTarget)
-          router.replace(finalTarget)
+          router.push(finalTarget)
         }
-      }, 100)
+      }, 200)
       
       return () => clearTimeout(timeoutId)
     }
@@ -64,14 +64,21 @@ export function Hero() {
   
   const handleDashboardClick = async (e: React.MouseEvent) => {
     e.preventDefault()
+    
+    // Get current callbackUrl from URL params if available
+    const params = new URLSearchParams(window.location.search)
+    const urlCallbackUrl = params.get('callbackUrl')
+    const targetUrl = urlCallbackUrl ? decodeURIComponent(urlCallbackUrl) : callbackUrl
+    
     if (session && status === 'authenticated') {
       // User is logged in, redirect directly using router
-      router.push(callbackUrl)
+      console.log('✅ User authenticated, redirecting to:', targetUrl)
+      router.push(targetUrl)
     } else {
       // User is not logged in, trigger sign-in with callbackUrl
       try {
-        console.log('🔍 [Auth Debug] Dashboard click sign-in:', { callbackUrl })
-        const result = await signIn('discord', { callbackUrl, redirect: true })
+        console.log('🔍 [Auth Debug] Dashboard click sign-in:', { callbackUrl: targetUrl })
+        const result = await signIn('discord', { callbackUrl: targetUrl, redirect: true })
         console.log('🔍 [Auth Debug] Dashboard sign-in result:', result)
       } catch (error: any) {
         console.error('🔍 [Auth Debug] Dashboard sign-in error:', error)
