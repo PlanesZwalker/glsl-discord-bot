@@ -2711,20 +2711,20 @@ class RealWebGLCompiler {
                 break;
                 
             } catch (error) {
-                    // Check if this is a context loss error
-                    const errorMsg = error.message || error.toString() || '';
-                    const isContextLoss = errorMsg.toLowerCase().includes('context has been lost') ||
-                                         errorMsg.toLowerCase().includes('context lost');
-                    
-                    if (isContextLoss && retryCount < maxRetries) {
-                        console.warn(`⚠️ WebGL context lost during compilation, retrying (${retryCount + 1}/${maxRetries})...`);
-                        retryCount++;
-                        continue; // Retry with a new page
-                    }
-                    
-                    // Not a context loss error or max retries exceeded, rethrow
-                    throw error;
+                // Check if this is a context loss error
+                const errorMsg = error.message || error.toString() || '';
+                const isContextLoss = errorMsg.toLowerCase().includes('context has been lost') ||
+                                     errorMsg.toLowerCase().includes('context lost');
+                
+                if (isContextLoss && retryCount < maxRetries) {
+                    console.warn(`⚠️ WebGL context lost during compilation, retrying (${retryCount + 1}/${maxRetries})...`);
+                    retryCount++;
+                    continue; // Retry with a new page
                 }
+                
+                // Not a context loss error or max retries exceeded, rethrow
+                throw error;
+            }
             }
 
             // Attendre que le shader se charge et se rende
