@@ -4784,6 +4784,39 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             
                             // Liste de TOUTES les stratégies à tester
                             const strategies = [
+                                // STRATÉGIE 1: Envoyer seulement le GIF sans embed ni content
+                                {
+                                    name: 'rest.patch_gif_only',
+                                    desc: 'rest.patch avec seulement le GIF, sans embed ni content',
+                                    test: async () => {
+                                        const restPayload = {
+                                            // Pas d'embeds, pas de content - juste le fichier
+                                        };
+                                        await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
+                                            body: restPayload,
+                                            files: options.files
+                                        });
+                                    }
+                                },
+                                // STRATÉGIE 2: Envoyer le GIF avec un embed minimal (seulement l'image)
+                                {
+                                    name: 'rest.patch_minimal_embed',
+                                    desc: 'rest.patch avec embed minimal (seulement l\'image, pas de champs)',
+                                    test: async () => {
+                                        // Créer un embed minimal avec seulement l'image
+                                        const minimalEmbed = embedsJson.length > 0 ? [{
+                                            image: embedsJson[0].image || { url: 'attachment://animation.gif' },
+                                            color: embedsJson[0].color || 0x9B59B6
+                                        }] : [];
+                                        const restPayload = {
+                                            embeds: minimalEmbed
+                                        };
+                                        await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
+                                            body: restPayload,
+                                            files: options.files
+                                        });
+                                    }
+                                },
                                 // STRATÉGIES rest.patch
                                 {
                                     name: 'rest.patch_with_AttachmentBuilder',
