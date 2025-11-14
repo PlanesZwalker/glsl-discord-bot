@@ -13,6 +13,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "coverage": "node scripts/get-coverage.js",
+    "check-deployments": "node scripts/check-deployments.js",
     "test:local": "node tests/test-local.js",
     "test:rainbow": "node tests/test-local.js rainbow",
     "test:mandelbrot": "node tests/test-local.js mandelbrot",
