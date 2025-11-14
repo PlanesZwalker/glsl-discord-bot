@@ -4715,6 +4715,108 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             
                             console.log(`📎 Envoi de ${options.files.length} fichier(s) via FormData`);
                             
+                            // IMPORTANT: Préparer le payload JSON AVANT d'ajouter les fichiers
+                            // Cela permet de s'assurer que le payload est correct avant de construire le FormData
+                            const embedsJson = options.embeds ? options.embeds.map(embed => {
+                                // Convertir l'embed en format JSON si c'est un EmbedBuilder
+                                if (embed && typeof embed.toJSON === 'function') {
+                                    return embed.toJSON();
+                                }
+                                return embed;
+                            }).filter(embed => embed !== null && embed !== undefined) : [];
+                            
+                            const payloadJson = {};
+                            
+                            // Toujours inclure les embeds s'ils existent
+                            if (embedsJson.length > 0) {
+                                payloadJson.embeds = embedsJson;
+                            }
+                            
+                            // Ajouter content s'il existe
+                            if (options.content) {
+                                payloadJson.content = options.content;
+                            }
+                            
+                            // Ajouter components s'ils existent
+                            if (options.components) {
+                                payloadJson.components = options.components;
+                            }
+                            
+                            // CRITIQUE: Discord avec FormData et editReply est TRÈS strict
+                            // Discord rejette les messages même avec embeds si le content est vide ou invisible
+                            // Solution: Utiliser un content réel (espace ou texte) même avec des embeds pour FormData
+                            if (payloadJson.embeds && payloadJson.embeds.length > 0) {
+                                // Avec FormData, Discord nécessite un content réel (pas invisible) même avec des embeds
+                                // Utiliser un espace réel (pas zero-width space) car Discord peut rejeter les caractères invisibles
+                                if (!payloadJson.content || payloadJson.content.trim() === '' || payloadJson.content.trim().length <= 2) {
+                                    payloadJson.content = ' '; // Espace réel (Discord accepte un espace avec embeds)
+                                    console.log('✅ Embeds présents - ajout content minimal (espace) pour FormData');
+                                }
+                            } else if (!payloadJson.content || payloadJson.content.trim() === '' || payloadJson.content.trim().length <= 2) {
+                                // Pas d'embeds et content invalide - utiliser un content descriptif
+                                payloadJson.content = 'Shader compilé et prêt !';
+                                console.log('⚠️ Content invalide remplacé par texte descriptif');
+                            }
+                            
+                            // Valider que les embeds sont correctement formatés
+                            if (payloadJson.embeds && payloadJson.embeds.length > 0) {
+                                for (let i = 0; i < payloadJson.embeds.length; i++) {
+                                    const embed = payloadJson.embeds[i];
+                                    if (!embed || typeof embed !== 'object') {
+                                        console.error(`❌ Embed ${i} invalide:`, embed);
+                                        throw new Error(`Embed ${i} invalide dans le payload`);
+                                    }
+                                    // S'assurer que l'embed a au moins un champ requis (title, description, ou fields)
+                                    if (!embed.title && !embed.description && (!embed.fields || embed.fields.length === 0)) {
+                                        console.warn(`⚠️ Embed ${i} pourrait être vide, mais on continue...`);
+                                    }
+                                }
+                            }
+                            
+                            // Vérification finale: s'assurer qu'on a au moins content ou embeds
+                            if (!payloadJson.content && (!payloadJson.embeds || payloadJson.embeds.length === 0)) {
+                                console.error('❌ Payload JSON vide - ajout forcé de content');
+                                payloadJson.content = 'Shader compilé et prêt !';
+                            }
+                            
+                            // Avec FormData, Discord nécessite un content réel (pas invisible) même avec des embeds
+                            // S'assurer qu'on a toujours un content (espace réel) si on a des embeds
+                            if (payloadJson.embeds && payloadJson.embeds.length > 0) {
+                                if (!payloadJson.content || payloadJson.content.trim() === '' || payloadJson.content.trim().length <= 2) {
+                                    payloadJson.content = ' '; // Espace réel (Discord accepte un espace avec embeds)
+                                    console.log('⚠️ Embeds présents - ajout content minimal (espace) pour FormData');
+                                }
+                            }
+                            
+                            // Stringify le JSON AVANT d'ajouter les fichiers
+                            let payloadJsonString = JSON.stringify(payloadJson, null, 0);
+                            
+                            // Vérification finale avant d'ajouter les fichiers
+                            const finalPayloadObj = JSON.parse(payloadJsonString);
+                            
+                            // Avec FormData, Discord nécessite un content réel (pas invisible) même avec des embeds
+                            // S'assurer qu'on a toujours un content (espace réel) si on a des embeds
+                            if (finalPayloadObj.embeds && finalPayloadObj.embeds.length > 0) {
+                                if (!finalPayloadObj.content || finalPayloadObj.content.trim() === '' || finalPayloadObj.content.trim().length <= 2) {
+                                    console.log('⚠️ Correction finale: ajout content minimal (espace) car embeds présents');
+                                    finalPayloadObj.content = ' '; // Espace réel (Discord accepte un espace avec embeds)
+                                    payloadJsonString = JSON.stringify(finalPayloadObj, null, 0);
+                                }
+                            } else if (!finalPayloadObj.content || finalPayloadObj.content.trim() === '' || finalPayloadObj.content.trim().length <= 2) {
+                                // Pas d'embeds et content invalide
+                                console.error('❌ ERREUR CRITIQUE: Content invalide et pas d\'embeds!');
+                                console.error(`❌ Content value: "${finalPayloadObj.content}"`);
+                                console.error(`❌ Content length: ${finalPayloadObj.content?.length || 0}`);
+                                finalPayloadObj.content = 'Shader compilé et prêt !';
+                                payloadJsonString = JSON.stringify(finalPayloadObj, null, 0);
+                                console.log('✅ Correction finale: content descriptif ajouté');
+                            }
+                            
+                            // IMPORTANT: Ajouter payload_json AVANT les fichiers (certaines implémentations Discord préfèrent cet ordre)
+                            formData.append('payload_json', payloadJsonString, {
+                                contentType: 'application/json'
+                            });
+                            
                             // Ajouter les fichiers au FormData
                             for (let i = 0; i < options.files.length; i++) {
                                 const file = options.files[i];
@@ -4991,10 +5093,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 console.log(`📋 Content: "${payloadJson.content}" (length: ${payloadJson.content.length}, trimmed: ${payloadJson.content.trim().length})`);
                             }
                             
-                            // Ajouter le payload_json en tant que string (pas Buffer) pour FormData
-                            // FormData gère automatiquement l'encodage UTF-8
-                            // IMPORTANT: Le nom doit être exactement 'payload_json' (sans options contentType)
-                            formData.append('payload_json', payloadJsonString);
+                            // IMPORTANT: L'ordre peut être critique - ajouter payload_json APRÈS les fichiers
+                            // Le nom doit être exactement 'payload_json'
+                            // Spécifier explicitement le contentType pour s'assurer que Discord le reconnaît
+                            formData.append('payload_json', payloadJsonString, {
+                                contentType: 'application/json'
+                            });
                             
                             // Envoyer avec FormData - utiliser fetch directement car discord.js REST peut avoir des problèmes
                             const webhookUrl = `https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`;
