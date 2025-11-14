@@ -67,6 +67,17 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
+    // IMPORTANT: Ne jamais lire depuis docs/gifs/ en production (Vercel)
+    // Ces fichiers sont servis depuis GitHub raw et ne doivent pas être dans le bundle
+    if (shader.gif_path && shader.gif_path.includes('docs/gifs/')) {
+      console.warn(`[GIF API] Attempted to read from docs/gifs/ - redirecting to GitHub raw`)
+      const shaderName = path.basename(shader.gif_path, path.extname(shader.gif_path))
+      return NextResponse.redirect(
+        `https://raw.githubusercontent.com/PlanesZwalker/glsl-discord-bot/master/docs/gifs/${shaderName}.gif`,
+        302
+      )
+    }
+
     const gifPath = path.isAbsolute(shader.gif_path) 
       ? shader.gif_path 
       : path.join(process.cwd(), '..', shader.gif_path)
