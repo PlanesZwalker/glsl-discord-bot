@@ -4746,13 +4746,22 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             // Ne pas utiliser d'emoji seul car Discord peut le rejeter dans certains cas
                             // Utiliser un texte réel minimal mais descriptif
                             
-                            // Toujours définir un content si pas fourni
+                            // FORCER l'utilisation d'un texte réel (pas d'emoji) pour FormData
+                            // Discord rejette les emojis seuls avec FormData + fichiers
                             if (!options.content || typeof options.content !== 'string' || options.content.trim().length === 0) {
                                 payloadJson.content = 'Shader animation'; // Texte réel minimal
                                 console.log('✅ FormData - ajout texte réel comme content (Discord nécessite un texte non-vide)');
                             } else {
-                                payloadJson.content = options.content;
-                                console.log('✅ FormData - content réel fourni, utilisation');
+                                // Même si un content est fourni, vérifier qu'il n'est pas juste un emoji
+                                const trimmedContent = options.content.trim();
+                                // Si le content est très court (<= 2 caractères) ou est juste un emoji, utiliser le texte par défaut
+                                if (trimmedContent.length <= 2 || /^[\u{1F300}-\u{1F9FF}]$/u.test(trimmedContent)) {
+                                    payloadJson.content = 'Shader animation';
+                                    console.log('⚠️ FormData - content fourni est un emoji ou trop court, utilisation du texte par défaut');
+                                } else {
+                                    payloadJson.content = options.content;
+                                    console.log('✅ FormData - content réel fourni, utilisation');
+                                }
                             }
                             
                             // Valider que les embeds sont correctement formatés

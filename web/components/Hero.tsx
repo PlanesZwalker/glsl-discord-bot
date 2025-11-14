@@ -25,29 +25,39 @@ export function Hero() {
     // Attendre que le statut soit déterminé
     if (status === 'loading') return
     
+    // Si on n'est pas sur la page d'accueil, ne pas rediriger
+    if (window.location.pathname !== '/') return
+    
     const params = new URLSearchParams(window.location.search)
     const callbackUrl = params.get('callbackUrl')
     
-    console.log('Hero - Status:', status, 'Session:', !!session, 'CallbackUrl:', callbackUrl, 'HasRedirected:', hasRedirected)
+    console.log('Hero - Status:', status, 'Session:', !!session, 'CallbackUrl:', callbackUrl, 'HasRedirected:', hasRedirected, 'Pathname:', window.location.pathname)
     
-    // Si authentifié ET callbackUrl présent ET pas encore redirigé
-    if (status === 'authenticated' && session && callbackUrl && !hasRedirected) {
+    // Si authentifié ET callbackUrl présent ET pas encore redirigé ET on est sur la page d'accueil
+    if (status === 'authenticated' && session && callbackUrl && !hasRedirected && window.location.pathname === '/') {
       console.log('Hero - Redirection vers:', callbackUrl)
       setHasRedirected(true)
       
       // Décoder l'URL si nécessaire
       const decodedUrl = decodeURIComponent(callbackUrl)
       
-      // Utiliser replace pour éviter d'ajouter à l'historique
-      router.replace(decodedUrl)
-      
-      // Fallback avec window.location si router ne fonctionne pas
-      setTimeout(() => {
-        if (window.location.pathname === '/' && window.location.search.includes('callbackUrl')) {
-          console.log('Hero - Fallback: redirection directe avec window.location')
-          window.location.href = decodedUrl
-        }
-      }, 100)
+      // Vérifier que decodedUrl est valide et différent de la page actuelle
+      if (decodedUrl && decodedUrl !== '/' && decodedUrl.startsWith('/')) {
+        // Utiliser replace pour éviter d'ajouter à l'historique
+        router.replace(decodedUrl)
+        
+        // Fallback avec window.location si router ne fonctionne pas après 200ms
+        setTimeout(() => {
+          // Vérifier qu'on est toujours sur la page d'accueil avec callbackUrl
+          if (window.location.pathname === '/' && window.location.search.includes('callbackUrl')) {
+            console.log('Hero - Fallback: redirection directe avec window.location')
+            window.location.replace(decodedUrl) // Utiliser replace au lieu de href pour éviter l'historique
+          }
+        }, 200)
+      } else {
+        console.warn('Hero - URL de callback invalide:', decodedUrl)
+        setHasRedirected(false) // Réinitialiser si l'URL est invalide
+      }
     }
   }, [status, session, router, hasRedirected])
   

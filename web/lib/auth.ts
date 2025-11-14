@@ -172,50 +172,57 @@ export const authOptions = {
         const urlObj = new URL(url, baseUrl)
         const callbackUrl = urlObj.searchParams.get('callbackUrl')
         
+        // PRIORITÉ 1: Si callbackUrl est présent dans les query params, l'utiliser directement
         if (callbackUrl) {
-          // Décoder l'URL si nécessaire
           const decodedCallbackUrl = decodeURIComponent(callbackUrl)
           
-          // Valider que le callbackUrl est sûr (même domaine)
+          // Valider que le callbackUrl est sûr (même domaine ou relatif)
           try {
             const callbackUrlObj = new URL(decodedCallbackUrl, baseUrl)
             if (callbackUrlObj.origin === baseUrl) {
-              console.log('Auth Redirect - Vers callbackUrl:', decodedCallbackUrl)
+              console.log('Auth Redirect - Vers callbackUrl (absolu):', decodedCallbackUrl)
               return decodedCallbackUrl
             }
           } catch (e) {
-            // Si c'est une URL relative, la valider
-            if (decodedCallbackUrl.startsWith('/')) {
-              console.log('Auth Redirect - Vers callbackUrl relatif:', decodedCallbackUrl)
+            // Si c'est une URL relative, la valider et la retourner
+            if (decodedCallbackUrl.startsWith('/') && decodedCallbackUrl !== '/') {
+              console.log('Auth Redirect - Vers callbackUrl (relatif):', decodedCallbackUrl)
               return decodedCallbackUrl
             }
           }
         }
         
-        // Si l'URL est la page d'accueil avec callbackUrl, extraire le callbackUrl
-        if (urlObj.pathname === '/' && callbackUrl) {
-          const decodedCallbackUrl = decodeURIComponent(callbackUrl)
-          if (decodedCallbackUrl.startsWith('/')) {
-            console.log('Auth Redirect - Page d\'accueil avec callbackUrl, redirection vers:', decodedCallbackUrl)
-            return decodedCallbackUrl
+        // PRIORITÉ 2: Si l'URL est la page d'accueil, rediriger vers /dashboard (pas vers / avec callbackUrl)
+        if (urlObj.pathname === '/') {
+          // Si callbackUrl est présent mais n'a pas été utilisé ci-dessus, l'utiliser
+          if (callbackUrl) {
+            const decodedCallbackUrl = decodeURIComponent(callbackUrl)
+            if (decodedCallbackUrl.startsWith('/') && decodedCallbackUrl !== '/') {
+              console.log('Auth Redirect - Page d\'accueil avec callbackUrl, redirection directe vers:', decodedCallbackUrl)
+              return decodedCallbackUrl
+            }
           }
+          // Sinon, rediriger vers /dashboard par défaut
+          console.log('Auth Redirect - Page d\'accueil, redirection vers /dashboard par défaut')
+          return `${baseUrl}/dashboard`
         }
       } catch (e) {
         console.error('Auth Redirect - Erreur parsing URL:', e)
       }
       
-      // Si l'URL commence par le baseUrl, la retourner (sans les query params de callbackUrl)
+      // PRIORITÉ 3: Si l'URL commence par le baseUrl, la retourner (sans les query params de callbackUrl)
       if (url.startsWith(baseUrl)) {
         const urlObj = new URL(url, baseUrl)
         // Si c'est la page d'accueil, rediriger vers /dashboard par défaut
         if (urlObj.pathname === '/') {
-          console.log('Auth Redirect - Page d\'accueil, redirection vers /dashboard par défaut')
+          console.log('Auth Redirect - Page d\'accueil (baseUrl), redirection vers /dashboard')
           return `${baseUrl}/dashboard`
         }
-        return url
+        // Retourner l'URL sans les query params pour éviter les boucles
+        return urlObj.pathname + urlObj.hash
       }
       
-      // Si l'URL est relative, la construire
+      // PRIORITÉ 4: Si l'URL est relative, la construire
       if (url.startsWith('/')) {
         return `${baseUrl}${url}`
       }
