@@ -4784,7 +4784,55 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             
                             // Liste de TOUTES les stratégies à tester
                             const strategies = [
-                                // STRATÉGIE 1: Envoyer seulement le GIF sans embed ni content
+                                // STRATÉGIE 1: Envoyer le GIF avec un embed minimal (seulement l'image) - PRIORITÉ
+                                // Discord nécessite un embed pour afficher correctement les images/GIFs
+                                {
+                                    name: 'rest.patch_minimal_embed',
+                                    desc: 'rest.patch avec embed minimal (seulement l\'image, pas de champs)',
+                                    test: async () => {
+                                        // Créer un embed minimal avec seulement l'image
+                                        // S'assurer que le nom du fichier correspond exactement
+                                        const fileName = filePaths[0]?.name || 'animation.gif';
+                                        const minimalEmbed = [{
+                                            image: { url: `attachment://${fileName}` },
+                                            color: embedsJson[0]?.color || 0x9B59B6
+                                        }];
+                                        const restPayload = {
+                                            embeds: minimalEmbed
+                                        };
+                                        // Utiliser filePaths extraits - s'assurer que le format est correct
+                                        const fileAttachments = filePaths.map(fp => {
+                                            // Si c'est un chemin, utiliser directement le chemin
+                                            if (fp.path) {
+                                                return {
+                                                    attachment: fp.path,
+                                                    name: fp.name
+                                                };
+                                            }
+                                            // Si c'est un buffer, utiliser le buffer
+                                            if (fp.buffer) {
+                                                return {
+                                                    attachment: fp.buffer,
+                                                    name: fp.name
+                                                };
+                                            }
+                                            // Si c'est un stream, utiliser le stream
+                                            if (fp.stream) {
+                                                return {
+                                                    attachment: fp.stream,
+                                                    name: fp.name
+                                                };
+                                            }
+                                            return null;
+                                        }).filter(f => f !== null);
+                                        
+                                        await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
+                                            body: restPayload,
+                                            files: fileAttachments
+                                        });
+                                    }
+                                },
+                                // STRATÉGIE 2: Envoyer seulement le GIF sans embed ni content (fallback)
                                 {
                                     name: 'rest.patch_gif_only',
                                     desc: 'rest.patch avec seulement le GIF, sans embed ni content',
@@ -4793,34 +4841,28 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                             // Pas d'embeds, pas de content - juste le fichier
                                         };
                                         // Utiliser filePaths extraits au lieu de options.files directement
-                                        const fileAttachments = filePaths.map(fp => ({
-                                            attachment: fp.path || fp.buffer || fp.stream,
-                                            name: fp.name
-                                        }));
-                                        await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
-                                            body: restPayload,
-                                            files: fileAttachments
-                                        });
-                                    }
-                                },
-                                // STRATÉGIE 2: Envoyer le GIF avec un embed minimal (seulement l'image)
-                                {
-                                    name: 'rest.patch_minimal_embed',
-                                    desc: 'rest.patch avec embed minimal (seulement l\'image, pas de champs)',
-                                    test: async () => {
-                                        // Créer un embed minimal avec seulement l'image
-                                        const minimalEmbed = embedsJson.length > 0 ? [{
-                                            image: embedsJson[0].image || { url: 'attachment://animation.gif' },
-                                            color: embedsJson[0].color || 0x9B59B6
-                                        }] : [];
-                                        const restPayload = {
-                                            embeds: minimalEmbed
-                                        };
-                                        // Utiliser filePaths extraits au lieu de options.files directement
-                                        const fileAttachments = filePaths.map(fp => ({
-                                            attachment: fp.path || fp.buffer || fp.stream,
-                                            name: fp.name
-                                        }));
+                                        const fileAttachments = filePaths.map(fp => {
+                                            if (fp.path) {
+                                                return {
+                                                    attachment: fp.path,
+                                                    name: fp.name
+                                                };
+                                            }
+                                            if (fp.buffer) {
+                                                return {
+                                                    attachment: fp.buffer,
+                                                    name: fp.name
+                                                };
+                                            }
+                                            if (fp.stream) {
+                                                return {
+                                                    attachment: fp.stream,
+                                                    name: fp.name
+                                                };
+                                            }
+                                            return null;
+                                        }).filter(f => f !== null);
+                                        
                                         await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
                                             body: restPayload,
                                             files: fileAttachments
