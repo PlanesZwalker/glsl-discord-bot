@@ -55,7 +55,9 @@ export function ChunkErrorHandler() {
 
     // Intercepter les erreurs de chargement de scripts
     const handleScriptError = (event: ErrorEvent) => {
-      const source = event.filename || event.target?.src || ''
+      // event.target peut être un HTMLScriptElement ou HTMLImageElement, mais TypeScript ne le sait pas
+      const target = event.target as HTMLScriptElement | HTMLImageElement | null
+      const source = event.filename || target?.src || ''
       const message = event.message || ''
       
       // Détecter les erreurs de chunks Next.js
