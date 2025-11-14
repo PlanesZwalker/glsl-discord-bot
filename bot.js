@@ -4724,7 +4724,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             const extractFilePaths = () => {
                                 const filePaths = [];
                                 for (const file of options.files) {
-                                    if (file.attachment) {
+                                if (file.attachment) {
                                         if (typeof file.attachment === 'string' && fs.existsSync(file.attachment)) {
                                             filePaths.push({
                                                 path: file.attachment,
@@ -4792,9 +4792,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                         const restPayload = {
                                             // Pas d'embeds, pas de content - juste le fichier
                                         };
+                                        // Utiliser filePaths extraits au lieu de options.files directement
+                                        const fileAttachments = filePaths.map(fp => ({
+                                            attachment: fp.path || fp.buffer || fp.stream,
+                                            name: fp.name
+                                        }));
                                         await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
                                             body: restPayload,
-                                            files: options.files
+                                            files: fileAttachments
                                         });
                                     }
                                 },
@@ -4811,9 +4816,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                         const restPayload = {
                                             embeds: minimalEmbed
                                         };
+                                        // Utiliser filePaths extraits au lieu de options.files directement
+                                        const fileAttachments = filePaths.map(fp => ({
+                                            attachment: fp.path || fp.buffer || fp.stream,
+                                            name: fp.name
+                                        }));
                                         await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
                                             body: restPayload,
-                                            files: options.files
+                                            files: fileAttachments
                                         });
                                     }
                                 },
@@ -5017,7 +5027,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                             } else if (fp.stream) {
                                                 fileStream = fp.stream;
                                             }
-                                            if (fileStream) {
+                                if (fileStream) {
                                                 formData.append(`files[${i}]`, fileStream, {
                                                     filename: fp.name,
                                                     contentType: fp.name.endsWith('.gif') ? 'image/gif' : 'image/png'
@@ -5257,7 +5267,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             }
                             
                             return; // Succès, sortir de la fonction
-                        } else {
+                                } else {
                             // Pas de fichiers, envoi JSON classique
                             // Ici on peut supprimer content si embeds présents (Discord accepte embeds seuls sans fichiers)
                             const jsonPayload = { ...options };
@@ -5301,7 +5311,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             // Avec FormData + fichiers, utiliser un emoji comme content
                             if (!options.content || options.content.trim() === '') {
                                 payloadJson.content = '🎨';
-                            } else {
+                                } else {
                                 payloadJson.content = options.content;
                             }
                             
@@ -5342,17 +5352,17 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             const response = await fetch(webhookUrl, {
                                 method: 'POST',
                                 headers: {
-                                    ...formData.getHeaders(),
-                                    'Authorization': `Bot ${discordToken}`
+                                ...formData.getHeaders(),
+                                'Authorization': `Bot ${discordToken}`
                                 },
-                                body: formData
-                            });
-                            
-                            if (!response.ok) {
-                                const errorText = await response.text();
-                                throw new Error(`Discord API error: ${response.status} - ${errorText.substring(0, 200)}`);
-                            }
-                            
+                                    body: formData
+                                });
+                                
+                                if (!response.ok) {
+                                    const errorText = await response.text();
+                                    throw new Error(`Discord API error: ${response.status} - ${errorText.substring(0, 200)}`);
+                                }
+                                
                             return await response.json();
                         } else {
                             // Pas de fichiers, envoi JSON classique
@@ -5413,10 +5423,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                     };
                     
                     try {
-                        await command.autocomplete(mockInteraction);
-                        if (autocompleteResponse) {
-                            return autocompleteResponse;
-                        }
+                    await command.autocomplete(mockInteraction);
+                    if (autocompleteResponse) {
+                        return autocompleteResponse;
+                    }
                     } catch (error) {
                         console.error(`❌ Erreur lors de l'autocomplete HTTP ${commandName}:`, error);
                     }
@@ -5468,7 +5478,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         
         // Middleware pour tracker les requêtes
         app.use(gracefulShutdown.middleware());
-        
+
         // Headers CORS pour Discord et API web (avant tout autre middleware)
         app.use((req, res, next) => {
             const allowedOrigins = [
@@ -5488,8 +5498,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
             res.setHeader('Access-Control-Allow-Credentials', 'true');
             if (req.method === 'OPTIONS') {
                 return res.sendStatus(200);
-            }
-            next();
+                    }
+                    next();
         });
         
         // Middleware pour parser le JSON (sans vérification de signature pour l'instant)
@@ -5677,7 +5687,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                         name: name || `Generated Shader #${Date.now()}`
                     });
                     res.json({ success: true, shaderId, gifUrl: result.gifPath, imageUrl: result.frameDirectory });
-                } else {
+                    } else {
                     res.status(400).json({ success: false, error: result.error });
                 }
             } catch (error) {
@@ -5729,7 +5739,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         
         // Démarrer le serveur Express
         this.server = app.listen(port, () => {
-            console.log(`🌐 Serveur Express démarré sur le port ${port}`);
+                console.log(`🌐 Serveur Express démarré sur le port ${port}`);
         });
         
         // Gérer la fermeture gracieuse du serveur
