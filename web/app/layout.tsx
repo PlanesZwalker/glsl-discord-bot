@@ -17,6 +17,10 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  if (typeof window !== 'undefined') {
+    console.log('🏠 Root Layout rendering')
+  }
+  
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>

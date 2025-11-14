@@ -10,6 +10,8 @@ import { useLocale } from '@/hooks/useLocale'
 import { getTranslations } from '@/lib/i18n'
 
 export default function DashboardPage() {
+  console.log('📊 Dashboard Page rendering')
+  
   const { data: session, status } = useSession()
   const router = useRouter()
   const { locale } = useLocale()
