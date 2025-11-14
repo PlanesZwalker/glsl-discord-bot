@@ -16,15 +16,24 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const userId = request.nextUrl.searchParams.get('userId') || session?.user?.id
+    
+    // En mode développement local, permettre l'accès sans authentification
+    const isLocalDev = process.env.NODE_ENV === 'development'
+    const isLocalhost = request.headers.get('host')?.includes('localhost')
+    
+    if (!isLocalDev || !isLocalhost) {
+      // En production, nécessiter une session
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
     }
 
     // Try bot API first if available (recommended for production)
     const botApiUrl = process.env.BOT_API_URL
-    if (botApiUrl) {
+    if (botApiUrl && userId) {
       try {
-        const response = await fetch(`${botApiUrl}/api/shaders/${params.id}/image?userId=${session.user.id}`, {
+        const response = await fetch(`${botApiUrl}/api/shaders/${params.id}/image?userId=${userId}`, {
           headers: {
             'Authorization': `Bearer ${process.env.BOT_API_KEY || ''}`,
           },
@@ -47,9 +56,10 @@ export async function GET(
     const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), '..', 'data', 'shaders.db')
     const db = new Database(dbPath, { readonly: true })
     
-    const shader = db
-      .prepare('SELECT * FROM shaders WHERE id = ? AND user_id = ?')
-      .get(params.id, session.user.id) as any
+    // En local, ne pas vérifier user_id si pas de session
+    const shader = userId
+      ? db.prepare('SELECT * FROM shaders WHERE id = ? AND user_id = ?').get(params.id, userId) as any
+      : db.prepare('SELECT * FROM shaders WHERE id = ?').get(params.id) as any
 
     db.close()
 
