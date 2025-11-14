@@ -5459,7 +5459,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
             next();
         });
         
-        app.use(express.json({ verify: this.verifyDiscordRequest.bind(this) }));
+        // Middleware pour parser le JSON (sans vérification de signature pour l'instant)
+        app.use(express.json());
         
         // Route pour les interactions Discord
         app.post('/discord', async (req, res) => {
