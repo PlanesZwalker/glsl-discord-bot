@@ -5259,7 +5259,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                         // Si des fichiers sont présents, utiliser FormData
                         if (options.files && options.files.length > 0) {
                             const FormData = require('form-data');
-                            const formData = new FormData();
+                            let formData = new FormData();
                             
                             // Préparer le payload JSON
                             const embedsJson = options.embeds ? options.embeds.map(embed => {
