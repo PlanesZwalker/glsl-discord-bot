@@ -18,35 +18,47 @@ export function Hero() {
   
   // Get callbackUrl from URL params to preserve it (client-side only)
   useEffect(() => {
-    // Only run this effect once and only when session status is determined
-    if (status === 'loading' || hasRedirected.current) {
-      return
+    if (typeof window === 'undefined') return
+    
+    const params = new URLSearchParams(window.location.search)
+    const rawCallbackUrl = params.get('callbackUrl')
+    if (rawCallbackUrl) {
+      const decoded = decodeURIComponent(rawCallbackUrl)
+      setCallbackUrl(decoded)
     }
     
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const rawCallbackUrl = params.get('callbackUrl')
-      if (rawCallbackUrl) {
-        const decoded = decodeURIComponent(rawCallbackUrl)
-        setCallbackUrl(decoded)
-      }
+    // If user is already logged in and we're on the home page, redirect to dashboard
+    // This handles the case where OAuth redirects back to home after sign-in
+    if (status === 'authenticated' && session && !hasRedirected.current) {
+      const currentPath = window.location.pathname
+      const targetPath = rawCallbackUrl ? decodeURIComponent(rawCallbackUrl) : '/dashboard'
+      const finalTarget = targetPath.startsWith('/') ? targetPath : `/${targetPath}`
       
-      // If user is already logged in and we're on the home page, redirect to dashboard
-      // This handles the case where OAuth redirects back to home after sign-in
-      if (status === 'authenticated' && session) {
-        const currentPath = window.location.pathname
-        const targetPath = rawCallbackUrl ? decodeURIComponent(rawCallbackUrl) : '/dashboard'
-        const finalTarget = targetPath.startsWith('/') ? targetPath : `/${targetPath}`
-        
-        // Only redirect if we're on the home page and not already on the target
-        if (currentPath === '/' && currentPath !== finalTarget) {
-          hasRedirected.current = true
-          console.log('✅ User authenticated, redirecting to:', finalTarget)
-          // Use router.replace to avoid adding to history and prevent loops
-          router.replace(finalTarget)
-          return
-        }
+      // Only redirect if we're on the home page and not already on the target
+      if (currentPath === '/' && currentPath !== finalTarget) {
+        hasRedirected.current = true
+        console.log('✅ User authenticated, redirecting to:', finalTarget)
+        // Use router.replace for immediate redirect without adding to history
+        router.replace(finalTarget)
+        return
       }
+    }
+    
+    // Also check if we have a callbackUrl in the URL and session is loading
+    // This handles the case where OAuth just completed and session is being established
+    if (rawCallbackUrl && status !== 'unauthenticated' && !hasRedirected.current) {
+      // Wait a bit for session to be established, then redirect
+      const timeoutId = setTimeout(() => {
+        if (status === 'authenticated' && session && !hasRedirected.current) {
+          const decoded = decodeURIComponent(rawCallbackUrl)
+          const finalTarget = decoded.startsWith('/') ? decoded : `/${decoded}`
+          hasRedirected.current = true
+          console.log('✅ Session established, redirecting to:', finalTarget)
+          router.replace(finalTarget)
+        }
+      }, 100)
+      
+      return () => clearTimeout(timeoutId)
     }
   }, [session, status, router])
   

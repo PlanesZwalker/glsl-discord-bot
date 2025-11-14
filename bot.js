@@ -5529,17 +5529,17 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                     });
                 }, 5000); // 5 second timeout
 
-                const { checkHealth } = require('./src/utils/healthCheck');
-                const health = await checkHealth({
-                    database: this.database,
-                    browserPool: require('./src/browser-pool').getBrowserPool(),
-                    cacheManager: require('./src/utils/cacheManager').getCacheManager(),
-                    bot: this
-                });
+            const { checkHealth } = require('./src/utils/healthCheck');
+            const health = await checkHealth({
+                database: this.database,
+                browserPool: require('./src/browser-pool').getBrowserPool(),
+                cacheManager: require('./src/utils/cacheManager').getCacheManager(),
+                bot: this
+            });
 
                 clearTimeout(timeout);
-                const statusCode = health.status === 'healthy' ? 200 : 503;
-                res.status(statusCode).json(health);
+            const statusCode = health.status === 'healthy' ? 200 : 503;
+            res.status(statusCode).json(health);
             } catch (error) {
                 // If health check fails, still return 200 to prevent Render from thinking service is down
                 console.error('Health check error:', error);
@@ -5778,7 +5778,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
             // Configure timeouts for Render.com (prevent 502 Bad Gateway errors)
             server.keepAliveTimeout = 120000; // 120 seconds
             server.headersTimeout = 120000; // 120 seconds
-            
+
             server.listen(port, '0.0.0.0', () => {
                 console.log(`🌐 Serveur Express démarré sur le port ${port}`);
                 console.log(`🔗 Endpoint Discord: https://glsl-discord-bot.onrender.com/discord`);
