@@ -4708,12 +4708,49 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                     
                     // Méthodes pour répondre via l'API REST
                     async editReply(options) {
-                        // Si des fichiers sont présents, utiliser FormData
+                        // Si des fichiers sont présents, utiliser rest.patch directement
+                        // discord.js REST gère automatiquement FormData et les fichiers
                         if (options.files && options.files.length > 0) {
+                            console.log(`📎 Envoi de ${options.files.length} fichier(s) via discord.js REST`);
+                            
+                            // Utiliser directement rest.patch qui gère FormData automatiquement
+                            try {
+                                const restPayload = {
+                                    embeds: options.embeds ? options.embeds.map(embed => {
+                                        if (embed && typeof embed.toJSON === 'function') {
+                                            return embed.toJSON();
+                                        }
+                                        return embed;
+                                    }).filter(embed => embed !== null && embed !== undefined) : [],
+                                    components: options.components,
+                                    content: options.content || 'Shader animation' // Toujours inclure un content
+                                };
+                                
+                                console.log(`🔍 rest.patch payload:`, {
+                                    hasEmbeds: restPayload.embeds.length > 0,
+                                    hasContent: !!restPayload.content,
+                                    contentLength: restPayload.content?.length || 0,
+                                    filesCount: options.files?.length || 0
+                                });
+                                
+                                await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
+                                    body: restPayload,
+                                    files: options.files || []
+                                });
+                                
+                                console.log(`✅ Message envoyé avec succès via rest.patch`);
+                                return; // Succès, sortir de la fonction
+                            } catch (restError) {
+                                console.error(`❌ rest.patch a échoué: ${restError.message}`);
+                                // Si rest.patch échoue, essayer les stratégies FormData manuelles
+                                console.log(`🔄 Fallback vers FormData manuel...`);
+                            }
+                            
+                            // FALLBACK: Si rest.patch échoue, utiliser FormData manuel avec stratégies
                             const FormData = require('form-data');
                             let formData = new FormData();
                             
-                            console.log(`📎 Envoi de ${options.files.length} fichier(s) via FormData`);
+                            console.log(`📎 Envoi de ${options.files.length} fichier(s) via FormData manuel`);
                             
                             // IMPORTANT: Avec FormData + fichiers + embeds, Discord nécessite un content non-vide
                             // Discord trim les espaces normaux, donc content: " " devient "" = message vide = erreur
@@ -5366,21 +5403,41 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 console.log(`🧪 DERNIER RECOURS: Essayer rest.patch de discord.js`);
                                 try {
                                     // Construire le payload pour rest.patch
-                                    const restPayload = { ...options };
-                                    if (restPayload.embeds && restPayload.embeds.length > 0) {
-                                        // Essayer avec content
-                                        restPayload.content = restPayload.content || 'Shader animation';
+                                    // discord.js REST gère automatiquement les fichiers AttachmentBuilder
+                                    const restPayload = {
+                                        embeds: options.embeds,
+                                        components: options.components,
+                                        content: options.content || 'Shader animation' // Toujours inclure un content
+                                    };
+                                    
+                                    // Convertir les embeds en JSON si nécessaire
+                                    if (restPayload.embeds) {
+                                        restPayload.embeds = restPayload.embeds.map(embed => {
+                                            if (embed && typeof embed.toJSON === 'function') {
+                                                return embed.toJSON();
+                                            }
+                                            return embed;
+                                        }).filter(embed => embed !== null && embed !== undefined);
                                     }
                                     
+                                    console.log(`🔍 rest.patch payload:`, {
+                                        hasEmbeds: !!restPayload.embeds && restPayload.embeds.length > 0,
+                                        hasContent: !!restPayload.content,
+                                        contentLength: restPayload.content?.length || 0,
+                                        filesCount: options.files?.length || 0
+                                    });
+                                    
+                                    // discord.js REST gère automatiquement les AttachmentBuilder
                                     await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
                                         body: restPayload,
-                                        files: options.files
+                                        files: options.files || []
                                     });
                                     
                                     console.log(`✅ ✅ ✅ SUCCÈS avec rest.patch! ✅ ✅ ✅`);
                                     successStrategy = 'rest.patch';
                                 } catch (restError) {
                                     console.error(`❌ rest.patch a aussi échoué: ${restError.message}`);
+                                    console.error(`❌ rest.patch error stack:`, restError.stack);
                                     // Re-throw l'erreur originale ou la dernière erreur
                                     throw lastError || restError;
                                 }
