@@ -24,6 +24,7 @@ function AuthErrorContent() {
   const { locale } = useLocale()
   const [diagnostic, setDiagnostic] = useState<any>(null)
   const [loadingDiagnostic, setLoadingDiagnostic] = useState(false)
+  const [callbackUrl, setCallbackUrl] = useState<string>('')
   
   // Capture all URL parameters for debugging
   const allParams: Record<string, string> = {}
@@ -34,17 +35,13 @@ function AuthErrorContent() {
     })
   }
 
-  // Get the current domain for callback URL
-  const getCallbackUrl = () => {
+  // Set callback URL only on client side to avoid hydration mismatch
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       const origin = window.location.origin
-      return `${origin}/api/auth/callback/discord`
+      setCallbackUrl(`${origin}/api/auth/callback/discord`)
     }
-    // Fallback for SSR
-    return 'https://glsl-discord-bot.vercel.app/api/auth/callback/discord'
-  }
-
-  const callbackUrl = getCallbackUrl()
+  }, [])
 
   // Fetch diagnostic on mount for any error (including unknown)
   useEffect(() => {
@@ -101,9 +98,10 @@ function AuthErrorContent() {
         if (errorDetails.toLowerCase().includes('application inconnue') || 
             errorDetails.toLowerCase().includes('unknown application') ||
             errorDetails.toLowerCase().includes('application unknown')) {
+          // Note: callbackUrl will be set dynamically in useEffect, so we use a generic message here
           return locale === 'fr'
-            ? 'Erreur OAuth: "Application inconnue" - Discord ne reconnaît pas votre application. Vérifiez que: 1) DISCORD_CLIENT_ID dans Vercel correspond exactement au Client ID dans Discord Developer Portal (section OAuth2), 2) DISCORD_CLIENT_SECRET correspond au Client Secret (cliquez sur "Reset Secret" si vous n\'êtes pas sûr et copiez le nouveau), 3) OAuth2 est activé dans votre application Discord, 4) L\'URL de callback dans Discord correspond exactement à: https://glsl-discord-bot.vercel.app/api/auth/callback/discord'
-            : 'OAuth error: "Unknown application" - Discord does not recognize your application. Verify that: 1) DISCORD_CLIENT_ID in Vercel exactly matches the Client ID in Discord Developer Portal (OAuth2 section), 2) DISCORD_CLIENT_SECRET matches the Client Secret (click "Reset Secret" if unsure and copy the new one), 3) OAuth2 is enabled in your Discord application, 4) The callback URL in Discord matches exactly: https://glsl-discord-bot.vercel.app/api/auth/callback/discord'
+            ? 'Erreur OAuth: "Application inconnue" - Discord ne reconnaît pas votre application. Vérifiez que: 1) DISCORD_CLIENT_ID correspond exactement au Client ID dans Discord Developer Portal (section OAuth2), 2) DISCORD_CLIENT_SECRET correspond au Client Secret, 3) OAuth2 est activé dans votre application Discord, 4) L\'URL de callback dans Discord correspond exactement à celle affichée ci-dessous.'
+            : 'OAuth error: "Unknown application" - Discord does not recognize your application. Verify that: 1) DISCORD_CLIENT_ID exactly matches the Client ID in Discord Developer Portal (OAuth2 section), 2) DISCORD_CLIENT_SECRET matches the Client Secret, 3) OAuth2 is enabled in your Discord application, 4) The callback URL in Discord matches exactly the one shown below.'
         }
         
         return locale === 'fr'
@@ -295,7 +293,7 @@ function AuthErrorContent() {
                         <ol className="list-decimal list-inside space-y-1 text-yellow-200 text-xs">
                           <li>Make sure cookies are enabled in your browser</li>
                           <li>Try in a regular browser window (not private/incognito mode)</li>
-                          <li>Clear cookies for glsl-discord-bot.vercel.app and try again</li>
+                          <li>Clear cookies for this domain and try again</li>
                           <li>Make sure you're not blocking third-party cookies</li>
                           <li>Try a different browser or device</li>
                           <li>Check browser console for cookie-related errors</li>
@@ -419,7 +417,7 @@ function AuthErrorContent() {
                         Verify callback URL in Discord has no trailing slash and matches exactly:
                         <br />
                         <span className="text-purple-300 text-xs font-mono break-all">
-                          https://glsl-discord-bot.vercel.app/api/auth/callback/discord
+                          {callbackUrl || 'Loading...'}
                         </span>
                       </li>
                       <li>
@@ -474,7 +472,7 @@ function AuthErrorContent() {
                     ? `Ajoutez l'URL de callback exacte:`
                     : `Add the exact callback URL:`}
                   <div className="mt-2 p-2 bg-gray-800 rounded font-mono text-xs text-blue-200 break-all">
-                    {callbackUrl}
+                    {callbackUrl || 'Loading...'}
                   </div>
                 </li>
                 <li>
@@ -491,7 +489,7 @@ function AuthErrorContent() {
                   : '⚠️ Important: The callback URL in Discord must EXACTLY match:'}
               </p>
               <div className="mt-2 p-2 bg-gray-800 rounded font-mono text-sm text-yellow-200 break-all">
-                {callbackUrl}
+                {callbackUrl || 'Loading...'}
               </div>
               <p className="text-yellow-300 text-xs mt-2">
                 {locale === 'fr'
