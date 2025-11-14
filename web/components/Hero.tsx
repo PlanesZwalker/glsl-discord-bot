@@ -29,26 +29,23 @@ export function Hero() {
       if (rawCallbackUrl) {
         const decoded = decodeURIComponent(rawCallbackUrl)
         setCallbackUrl(decoded)
+      }
+      
+      // If user is already logged in and we're on the home page, redirect to dashboard
+      // This handles the case where OAuth redirects back to home after sign-in
+      if (status === 'authenticated' && session) {
+        const currentPath = window.location.pathname
+        const targetPath = rawCallbackUrl ? decodeURIComponent(rawCallbackUrl) : '/dashboard'
+        const finalTarget = targetPath.startsWith('/') ? targetPath : `/${targetPath}`
         
-        // If user is already logged in, redirect directly to callbackUrl
-        // But only if we're not already on that page to avoid loops
-        if (status === 'authenticated' && session && decoded) {
-          const currentPath = window.location.pathname
-          const targetPath = decoded.startsWith('/') ? decoded : `/${decoded}`
-          
-          // Only redirect if we're not already on the target page
-          // And make sure we're on the home page (/) to avoid loops
-          if (currentPath === '/' && currentPath !== targetPath) {
-            hasRedirected.current = true
-            console.log('✅ User logged in, redirecting to:', decoded)
-            // Use router.replace to avoid adding to history and prevent loops
-            router.replace(decoded)
-          }
+        // Only redirect if we're on the home page and not already on the target
+        if (currentPath === '/' && currentPath !== finalTarget) {
+          hasRedirected.current = true
+          console.log('✅ User authenticated, redirecting to:', finalTarget)
+          // Use router.replace to avoid adding to history and prevent loops
+          router.replace(finalTarget)
           return
         }
-        
-        // Don't auto-trigger sign-in - let user click the button manually
-        // Auto-triggering can cause issues with OAuth flow and callbackUrl preservation
       }
     }
   }, [session, status, router])

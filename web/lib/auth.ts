@@ -183,18 +183,22 @@ export const authOptions = {
           try {
             const urlObj = new URL(url)
             if (urlObj.origin === baseUrl) {
-              // Check if the URL has callbackUrl parameter to avoid loops
+              // Check if the URL has callbackUrl parameter to extract the actual destination
               const callbackParam = urlObj.searchParams.get('callbackUrl')
-              if (callbackParam && !callbackParam.includes('callbackUrl')) {
-                // If we're redirecting to a URL with callbackUrl, extract and use it
-                const cleanUrl = `${baseUrl}${callbackParam}`
+              if (callbackParam) {
+                // Decode the callbackUrl parameter
+                const decodedCallback = decodeURIComponent(callbackParam)
+                const cleanUrl = decodedCallback.startsWith('/') 
+                  ? `${baseUrl}${decodedCallback}`
+                  : `${baseUrl}/${decodedCallback}`
                 console.log('✅ Extracting callbackUrl from redirect URL:', cleanUrl)
                 return cleanUrl
               }
-              // If URL is just the home page with callbackUrl, don't redirect to avoid loops
-              if (urlObj.pathname === '/' && callbackParam) {
-                console.log('⚠️ Home page with callbackUrl detected, redirecting to callbackUrl:', callbackParam)
-                return `${baseUrl}${callbackParam}`
+              // If URL is just the home page, check if we should redirect to dashboard
+              if (urlObj.pathname === '/' || urlObj.pathname === '') {
+                // Default to dashboard if no specific callback
+                console.log('⚠️ Home page detected, redirecting to dashboard')
+                return `${baseUrl}/dashboard`
               }
               console.log('✅ Redirecting to same-origin URL:', url)
               return url
@@ -207,17 +211,15 @@ export const authOptions = {
           }
         }
         
-        // If no URL provided, redirect to baseUrl (home page)
-        // Don't default to /dashboard here to avoid redirect loops
-        // The client-side code will handle redirecting to /dashboard if needed
+        // If no URL provided, default to dashboard (user likely wants to go there after sign-in)
         if (!url || url === baseUrl || url === `${baseUrl}/`) {
-          console.log('⚠️ No callback URL provided, redirecting to baseUrl to avoid loops')
-          return baseUrl
+          console.log('⚠️ No callback URL provided, redirecting to dashboard')
+          return `${baseUrl}/dashboard`
         }
         
-        // Default: redirect to baseUrl (home page)
-        console.log('⚠️ No valid callback URL, redirecting to baseUrl:', baseUrl)
-        return baseUrl
+        // Default: redirect to dashboard
+        console.log('⚠️ No valid callback URL, redirecting to dashboard')
+        return `${baseUrl}/dashboard`
       } catch (error: any) {
         console.error('❌ Error in redirect callback:', error)
         console.error('❌ Redirect error details:', {
@@ -226,8 +228,8 @@ export const authOptions = {
           url,
           baseUrl
         })
-        // Fallback to baseUrl on error
-        return baseUrl
+        // Fallback to dashboard on error
+        return `${baseUrl}/dashboard`
       }
     },
   },
