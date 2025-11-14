@@ -5154,11 +5154,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         // Middleware pour tracker les requêtes
         app.use(gracefulShutdown.middleware());
 
-        // Headers CORS pour Discord (avant tout autre middleware)
+        // Headers CORS pour Discord et API web (avant tout autre middleware)
         app.use((req, res, next) => {
             res.setHeader('Access-Control-Allow-Origin', '*');
-            res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Signature-Ed25519, X-Signature-Timestamp');
+            res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET, DELETE');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Signature-Ed25519, X-Signature-Timestamp');
             next();
         });
 
@@ -5684,6 +5684,213 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
             } catch (error) {
                 console.error('Error fetching shader code:', error);
                 res.status(500).json({ error: 'Internal server error' });
+            }
+        });
+
+        // Compile custom shader
+        app.post('/api/shaders/compile', verifyApiKey, async (req, res) => {
+            try {
+                const { code, name, textures, userId } = req.body;
+
+                if (!code || typeof code !== 'string') {
+                    return res.status(400).json({ error: 'Shader code is required' });
+                }
+
+                if (!userId) {
+                    return res.status(400).json({ error: 'userId is required' });
+                }
+
+                // Validate shader
+                const { ShaderValidator } = require('./src/utils/shaderValidator');
+                const validation = ShaderValidator.validate(code, 'glsl');
+                if (!validation.valid) {
+                    return res.status(400).json({ 
+                        error: 'Validation failed',
+                        errors: validation.errors 
+                    });
+                }
+
+                // Use sanitized code if available
+                const codeToCompile = validation.sanitized || code;
+
+                // Prepare textures array
+                const textureUrls = [];
+                if (textures && Array.isArray(textures)) {
+                    textureUrls.push(...textures.filter(t => t && typeof t === 'string'));
+                }
+
+                // Compile shader
+                const result = await this.compiler.compileShader(codeToCompile, {
+                    textures: textureUrls.length > 0 ? textureUrls : null,
+                    userId: userId
+                });
+
+                if (!result.success) {
+                    return res.status(500).json({ 
+                        error: 'Compilation failed',
+                        message: result.error 
+                    });
+                }
+
+                // Save to database
+                const shaderId = await this.database.saveShader({
+                    code: code,
+                    userId: userId,
+                    userName: 'Web User',
+                    imagePath: result.frameDirectory,
+                    gifPath: result.gifPath,
+                    name: name || null
+                });
+
+                await this.database.updateUserStats(userId, 'Web User');
+
+                res.json({
+                    success: true,
+                    shaderId: shaderId,
+                    gifPath: result.gifPath,
+                    frameDirectory: result.frameDirectory
+                });
+            } catch (error) {
+                console.error('Error compiling shader:', error);
+                res.status(500).json({ error: 'Internal server error', message: error.message });
+            }
+        });
+
+        // Generate shader from parameters
+        app.post('/api/shaders/generate', verifyApiKey, async (req, res) => {
+            try {
+                const { shape, color, animation, speed, size, userId } = req.body;
+
+                if (!shape || !color || !animation) {
+                    return res.status(400).json({ error: 'Shape, color, and animation are required' });
+                }
+
+                if (!userId) {
+                    return res.status(400).json({ error: 'userId is required' });
+                }
+
+                // Generate GLSL code
+                const shaderCode = this.generateShaderFromParams({
+                    forme: shape,
+                    couleur: color,
+                    animation: animation,
+                    vitesse: speed || 'normal',
+                    taille: size || 5
+                });
+
+                if (!shaderCode) {
+                    return res.status(400).json({ error: 'Failed to generate shader code' });
+                }
+
+                // Validate shader
+                const validation = await this.compiler.validateShader(shaderCode);
+                if (!validation.valid) {
+                    return res.status(400).json({ 
+                        error: 'Validation failed',
+                        errors: validation.errors 
+                    });
+                }
+
+                // Compile shader
+                const result = await this.compiler.compileShader(shaderCode, {
+                    userId: userId
+                });
+
+                if (!result.success) {
+                    return res.status(500).json({ 
+                        error: 'Compilation failed',
+                        message: result.error 
+                    });
+                }
+
+                // Save to database
+                const shaderId = await this.database.saveShader({
+                    code: shaderCode,
+                    userId: userId,
+                    userName: 'Web User',
+                    imagePath: result.frameDirectory,
+                    gifPath: result.gifPath,
+                    name: `Generated: ${shape} ${color} ${animation}`
+                });
+
+                await this.database.updateUserStats(userId, 'Web User');
+
+                res.json({
+                    success: true,
+                    shaderId: shaderId,
+                    gifPath: result.gifPath,
+                    frameDirectory: result.frameDirectory
+                });
+            } catch (error) {
+                console.error('Error generating shader:', error);
+                res.status(500).json({ error: 'Internal server error', message: error.message });
+            }
+        });
+
+        // Compile preset shader
+        app.post('/api/shaders/preset', verifyApiKey, async (req, res) => {
+            try {
+                const { preset, userId } = req.body;
+
+                if (!preset || typeof preset !== 'string') {
+                    return res.status(400).json({ error: 'Preset name is required' });
+                }
+
+                if (!userId) {
+                    return res.status(400).json({ error: 'userId is required' });
+                }
+
+                // Get shader code
+                const shaderCode = this.getShaderCodeByName(preset.toLowerCase());
+                
+                if (!shaderCode) {
+                    return res.status(404).json({ error: 'Preset shader not found' });
+                }
+
+                // Validate shader
+                const { ShaderValidator } = require('./src/utils/shaderValidator');
+                const validation = ShaderValidator.validate(shaderCode, 'glsl');
+                if (!validation.valid) {
+                    return res.status(400).json({ 
+                        error: 'Validation failed',
+                        errors: validation.errors 
+                    });
+                }
+
+                // Compile shader
+                const result = await this.compiler.compileShader(shaderCode, {
+                    presetName: preset,
+                    userId: userId
+                });
+
+                if (!result.success) {
+                    return res.status(500).json({ 
+                        error: 'Compilation failed',
+                        message: result.error 
+                    });
+                }
+
+                // Save to database
+                const shaderId = await this.database.saveShader({
+                    code: shaderCode,
+                    userId: userId,
+                    userName: 'Web User',
+                    imagePath: result.frameDirectory,
+                    gifPath: result.gifPath,
+                    name: preset
+                });
+
+                await this.database.updateUserStats(userId, 'Web User');
+
+                res.json({
+                    success: true,
+                    shaderId: shaderId,
+                    gifPath: result.gifPath,
+                    frameDirectory: result.frameDirectory
+                });
+            } catch (error) {
+                console.error('Error compiling preset shader:', error);
+                res.status(500).json({ error: 'Internal server error', message: error.message });
             }
         });
 

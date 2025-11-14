@@ -59,6 +59,11 @@ export const translations = {
       actions: 'Actions',
       view: 'View',
       delete: 'Delete',
+      myShaders: 'My Shaders',
+      createShader: 'Create Shader',
+      generateShader: 'Generate Shader',
+      presetShaders: 'Preset Shaders',
+      statistics: 'Statistics',
     },
     install: {
       title: 'Install GLSL Discord Bot',
@@ -133,6 +138,11 @@ export const translations = {
       actions: 'Actions',
       view: 'Voir',
       delete: 'Supprimer',
+      myShaders: 'Mes Shaders',
+      createShader: 'Créer un Shader',
+      generateShader: 'Générer un Shader',
+      presetShaders: 'Shaders Prédéfinis',
+      statistics: 'Statistiques',
     },
     install: {
       title: 'Installer le Bot GLSL Discord',

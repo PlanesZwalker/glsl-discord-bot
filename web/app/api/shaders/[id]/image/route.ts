@@ -67,19 +67,34 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    // Try to get first frame from frame directory
-    const frameDir = shader.image_path
-    const framePath = path.isAbsolute(frameDir)
-      ? frameDir
-      : path.join(process.cwd(), '..', frameDir)
+    // Check if image_path is a file (GIF) or a directory (frames)
+    const imagePath = shader.image_path
+    const fullPath = path.isAbsolute(imagePath)
+      ? imagePath
+      : path.join(process.cwd(), '..', imagePath)
     
-    if (fs.existsSync(framePath) && fs.statSync(framePath).isDirectory()) {
-      const files = fs.readdirSync(framePath)
+    // If it's a file (GIF), serve it directly
+    if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+      const ext = path.extname(fullPath).toLowerCase()
+      const contentType = ext === '.gif' ? 'image/gif' : 'image/png'
+      const fileBuffer = fs.readFileSync(fullPath)
+      
+      return new NextResponse(fileBuffer, {
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=31536000',
+        },
+      })
+    }
+    
+    // If it's a directory, try to get first frame
+    if (fs.existsSync(fullPath) && fs.statSync(fullPath).isDirectory()) {
+      const files = fs.readdirSync(fullPath)
         .filter(f => f.endsWith('.png'))
         .sort()
       
       if (files.length > 0) {
-        const firstFrame = path.join(framePath, files[0])
+        const firstFrame = path.join(fullPath, files[0])
         const fileBuffer = fs.readFileSync(firstFrame)
         
         return new NextResponse(fileBuffer, {

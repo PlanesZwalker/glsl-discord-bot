@@ -4,6 +4,11 @@ import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { useLocale } from '@/hooks/useLocale'
 import { getTranslations } from '@/lib/i18n'
+import { StatsPanel } from './StatsPanel'
+import { ShaderList } from './ShaderList'
+import { ShaderEditor } from './ShaderEditor'
+import { ShaderGenerator } from './ShaderGenerator'
+import { PresetBrowser } from './PresetBrowser'
 
 interface Shader {
   id: number
@@ -18,6 +23,8 @@ interface Shader {
   created_at: string
 }
 
+type Tab = 'list' | 'create' | 'generate' | 'presets' | 'stats'
+
 export function DashboardContent() {
   const { locale } = useLocale()
   const t = getTranslations(locale)
@@ -25,12 +32,14 @@ export function DashboardContent() {
   const [shaders, setShaders] = useState<Shader[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<Tab>('list')
+  const [stats, setStats] = useState<any>(null)
 
   useEffect(() => {
-    // En local, récupérer les shaders même sans session
     const isLocalDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
     if (session?.user?.id || isLocalDev) {
       fetchShaders()
+      fetchStats()
     }
   }, [session])
 
@@ -38,14 +47,12 @@ export function DashboardContent() {
     try {
       setLoading(true)
       setError(null)
-      // En local, utiliser un userId par défaut ou récupérer tous les shaders
       const isLocalDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
       const userId = session?.user?.id || (isLocalDev ? '123456789012345678' : null)
       const response = await fetch(`/api/shaders?userId=${userId}`)
       
       if (response.ok) {
         const data = await response.json()
-        // Handle both array and error object responses
         if (Array.isArray(data)) {
           setShaders(data)
         } else if (data.error) {
@@ -55,7 +62,6 @@ export function DashboardContent() {
           setShaders([])
         }
       } else {
-        // Handle non-ok responses
         const errorData = await response.json().catch(() => ({ error: 'Failed to fetch shaders' }))
         setError(errorData.error || `Error ${response.status}: ${response.statusText}`)
         setShaders([])
@@ -69,93 +75,132 @@ export function DashboardContent() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="text-center py-12">
-        <div className="text-gray-900 dark:text-white text-xl transition-colors">{t.dashboard.loading}</div>
-      </div>
-    )
+  async function fetchStats() {
+    try {
+      const isLocalDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+      const userId = session?.user?.id || (isLocalDev ? '123456789012345678' : null)
+      const response = await fetch(`/api/stats?userId=${userId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setStats(data)
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error)
+    }
   }
+
+  async function handleDeleteShader(shaderId: number) {
+    if (!confirm(locale === 'fr' ? 'Êtes-vous sûr de vouloir supprimer ce shader ?' : 'Are you sure you want to delete this shader?')) {
+      return
+    }
+
+    try {
+      const isLocalDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+      const userId = session?.user?.id || (isLocalDev ? '123456789012345678' : null)
+      const response = await fetch(`/api/shaders/${shaderId}?userId=${userId}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        setShaders(shaders.filter(s => s.id !== shaderId))
+        fetchStats() // Refresh stats
+      } else {
+        alert(locale === 'fr' ? 'Erreur lors de la suppression' : 'Error deleting shader')
+      }
+    } catch (error) {
+      console.error('Error deleting shader:', error)
+      alert(locale === 'fr' ? 'Erreur lors de la suppression' : 'Error deleting shader')
+    }
+  }
+
+  const tabs = [
+    { id: 'list' as Tab, label: locale === 'fr' ? 'Mes Shaders' : 'My Shaders', icon: '📋' },
+    { id: 'create' as Tab, label: locale === 'fr' ? 'Créer un Shader' : 'Create Shader', icon: '✏️' },
+    { id: 'generate' as Tab, label: locale === 'fr' ? 'Générer un Shader' : 'Generate Shader', icon: '🎨' },
+    { id: 'presets' as Tab, label: locale === 'fr' ? 'Shaders Prédéfinis' : 'Preset Shaders', icon: '⭐' },
+    { id: 'stats' as Tab, label: locale === 'fr' ? 'Statistiques' : 'Statistics', icon: '📊' },
+  ]
 
   return (
     <div>
-      <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-8 transition-colors">{t.dashboard.title}</h1>
-      
-      {error ? (
-        <div className="text-center py-12 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800 transition-colors shadow-sm">
-          <p className="text-red-600 dark:text-red-400 text-xl font-semibold mb-2 transition-colors">
-            Error loading shaders
-          </p>
-          <p className="text-red-500 dark:text-red-500 text-sm transition-colors">{error}</p>
-          {error.includes('BOT_API_URL') || error.includes('Database not found') ? (
-            <p className="text-red-500 dark:text-red-500 text-xs mt-4 transition-colors">
-              Please configure BOT_API_URL in Vercel environment variables to connect to the bot API.
-            </p>
-          ) : null}
-          <button
-            onClick={fetchShaders}
-            className="mt-4 px-4 py-2 bg-discord-blurple hover:bg-blue-600 text-white rounded text-sm font-medium transition-colors"
-          >
-            Retry
-          </button>
-        </div>
-      ) : shaders.length === 0 ? (
-        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors shadow-sm dark:shadow-none">
-          <p className="text-gray-600 dark:text-gray-400 text-xl transition-colors">{t.dashboard.empty}</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {shaders.map((shader) => (
-            <ShaderCard key={shader.id} shader={shader} t={t} />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ShaderCard({ shader, t }: { shader: Shader; t: any }) {
-  const gifUrl = shader.gif_path 
-    ? `/api/shaders/${shader.id}/gif`
-    : shader.image_path
-    ? `/api/shaders/${shader.id}/image`
-    : null
-
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:border-discord-blurple transition-colors shadow-sm dark:shadow-none">
-      {gifUrl && (
-        <div className="aspect-video bg-gray-100 dark:bg-gray-900 flex items-center justify-center transition-colors">
-          <img
-            src={gifUrl}
-            alt={shader.name || 'Shader'}
-            className="w-full h-full object-contain"
-          />
-        </div>
-      )}
-      <div className="p-4">
-        <h3 className="text-gray-900 dark:text-white font-semibold mb-2 transition-colors">
-          {shader.name || `Shader #${shader.id}`}
-        </h3>
-        <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-4 transition-colors">
-          <span>{t.dashboard.views}: {shader.views}</span>
-          <span>{t.dashboard.likes}: {shader.likes}</span>
-        </div>
-        <div className="text-xs text-gray-500 dark:text-gray-500 mb-4 transition-colors">
-          {t.dashboard.createdAt}: {new Date(shader.created_at).toLocaleDateString()}
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(shader.code)
-              alert(t.common.codeCopied)
-            }}
-            className="flex-1 bg-discord-blurple hover:bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium"
-          >
-            {t.dashboard.view}
-          </button>
-        </div>
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2 transition-colors">
+          {locale === 'fr' ? 'Tableau de Bord' : 'Dashboard'}
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400 transition-colors">
+          {locale === 'fr' 
+            ? 'Gérez vos shaders, créez-en de nouveaux et consultez vos statistiques'
+            : 'Manage your shaders, create new ones, and view your statistics'}
+        </p>
       </div>
+
+      {/* Tabs */}
+      <div className="border-b border-gray-200 dark:border-gray-700 mb-6 transition-colors">
+        <nav className="-mb-px flex space-x-8">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`
+                py-4 px-1 border-b-2 font-medium text-sm transition-colors
+                ${activeTab === tab.id
+                  ? 'border-discord-blurple text-discord-blurple'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                }
+              `}
+            >
+              <span className="mr-2">{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'list' && (
+        <ShaderList
+          shaders={shaders}
+          loading={loading}
+          error={error}
+          onDelete={handleDeleteShader}
+          onRefresh={fetchShaders}
+          t={t}
+          locale={locale}
+        />
+      )}
+
+      {activeTab === 'create' && (
+        <ShaderEditor
+          onShaderCreated={fetchShaders}
+          t={t}
+          locale={locale}
+        />
+      )}
+
+      {activeTab === 'generate' && (
+        <ShaderGenerator
+          onShaderCreated={fetchShaders}
+          t={t}
+          locale={locale}
+        />
+      )}
+
+      {activeTab === 'presets' && (
+        <PresetBrowser
+          onShaderCreated={fetchShaders}
+          t={t}
+          locale={locale}
+        />
+      )}
+
+      {activeTab === 'stats' && (
+        <StatsPanel
+          stats={stats}
+          loading={!stats}
+          t={t}
+          locale={locale}
+        />
+      )}
     </div>
   )
 }
-
