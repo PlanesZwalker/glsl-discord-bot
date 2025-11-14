@@ -192,7 +192,7 @@ export const authOptions = {
           }
         }
         
-        // PRIORITÉ 2: Si l'URL est la page d'accueil, rediriger vers /dashboard (pas vers / avec callbackUrl)
+        // PRIORITÉ 2: Si l'URL est la page d'accueil avec callbackUrl, rediriger vers le callbackUrl
         if (urlObj.pathname === '/') {
           // Si callbackUrl est présent mais n'a pas été utilisé ci-dessus, l'utiliser
           if (callbackUrl) {
@@ -202,9 +202,10 @@ export const authOptions = {
               return decodedCallbackUrl
             }
           }
-          // Sinon, rediriger vers /dashboard par défaut
-          console.log('Auth Redirect - Page d\'accueil, redirection vers /dashboard par défaut')
-          return `${baseUrl}/dashboard`
+          // Si pas de callbackUrl, laisser l'utilisateur sur la page d'accueil (ne pas rediriger automatiquement)
+          // Cela évite les boucles de redirection
+          console.log('Auth Redirect - Page d\'accueil sans callbackUrl, rester sur /')
+          return urlObj.pathname + urlObj.hash
         }
       } catch (e) {
         console.error('Auth Redirect - Erreur parsing URL:', e)
@@ -213,12 +214,8 @@ export const authOptions = {
       // PRIORITÉ 3: Si l'URL commence par le baseUrl, la retourner (sans les query params de callbackUrl)
       if (url.startsWith(baseUrl)) {
         const urlObj = new URL(url, baseUrl)
-        // Si c'est la page d'accueil, rediriger vers /dashboard par défaut
-        if (urlObj.pathname === '/') {
-          console.log('Auth Redirect - Page d\'accueil (baseUrl), redirection vers /dashboard')
-          return `${baseUrl}/dashboard`
-        }
         // Retourner l'URL sans les query params pour éviter les boucles
+        // Ne pas rediriger automatiquement / vers /dashboard ici
         return urlObj.pathname + urlObj.hash
       }
       

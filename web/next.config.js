@@ -7,8 +7,9 @@ const nextConfig = {
   // Exclure les GIFs du bundle serverless (ils sont servis depuis GitHub raw)
   // Note: outputFileTracingExcludes ne fonctionne pas toujours correctement
   // Les GIFs sont servis depuis GitHub raw dans ShaderGallery, pas depuis le système de fichiers
-  // Utiliser serverComponentsExternalPackages pour exclure better-sqlite3 du bundle
-  serverComponentsExternalPackages: ['better-sqlite3'],
+  // Note: serverComponentsExternalPackages n'est pas disponible dans Next.js 13.5.6
+  // Le .vercelignore à la racine exclut déjà docs/gifs/ efficacement
+  // better-sqlite3 est utilisé dans les routes API mais n'est pas un problème de taille
   
   experimental: {
     outputFileTracingExcludes: {

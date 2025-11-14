@@ -43,7 +43,7 @@ export function Hero() {
       
       // Vérifier que decodedUrl est valide et différent de la page actuelle
       if (decodedUrl && decodedUrl !== '/' && decodedUrl.startsWith('/')) {
-        // Utiliser replace pour éviter d'ajouter à l'historique
+        // Utiliser replace pour éviter d'ajouter à l'historique et nettoyer le callbackUrl
         router.replace(decodedUrl)
         
         // Fallback avec window.location si router ne fonctionne pas après 200ms
@@ -57,7 +57,20 @@ export function Hero() {
       } else {
         console.warn('Hero - URL de callback invalide:', decodedUrl)
         setHasRedirected(false) // Réinitialiser si l'URL est invalide
+        // Nettoyer le callbackUrl de l'URL si invalide
+        if (window.location.search.includes('callbackUrl')) {
+          const newUrl = new URL(window.location.href)
+          newUrl.searchParams.delete('callbackUrl')
+          window.history.replaceState({}, '', newUrl.toString())
+        }
       }
+    }
+    
+    // Nettoyer le callbackUrl de l'URL si on est authentifié et qu'il n'y a pas de callbackUrl valide
+    if (status === 'authenticated' && session && !callbackUrl && window.location.search.includes('callbackUrl')) {
+      const newUrl = new URL(window.location.href)
+      newUrl.searchParams.delete('callbackUrl')
+      window.history.replaceState({}, '', newUrl.toString())
     }
   }, [status, session, router, hasRedirected])
   

@@ -37,9 +37,10 @@ export default function DashboardPage() {
     }
     
     if (status === 'unauthenticated') {
-      // Non authentifié, redirection immédiate
+      // Non authentifié, redirection immédiate vers / avec callbackUrl
+      // Utiliser replace pour éviter d'ajouter à l'historique
       console.log('Dashboard - Non authentifié, redirection vers /')
-      router.push('/?callbackUrl=/dashboard')
+      router.replace('/?callbackUrl=/dashboard')
       return
     }
     

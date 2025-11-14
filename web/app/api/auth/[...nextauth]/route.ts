@@ -118,13 +118,27 @@ export async function POST(request: Request, context: any) {
           const error = formData.get('error')
           const errorDescription = formData.get('error_description')
           if (error) {
+            // Si error est '[object Object]', essayer de parser le body comme JSON
+            let parsedError = error
+            let parsedErrorDescription = errorDescription
+            if (error === '[object Object]' || error.includes('object Object')) {
+              try {
+                const jsonBody = JSON.parse(body)
+                parsedError = jsonBody.error || error
+                parsedErrorDescription = jsonBody.error_description || jsonBody.errorDescription || errorDescription
+              } catch (jsonError) {
+                // Si ce n'est pas du JSON, garder l'erreur originale
+              }
+            }
             console.error('❌ OAuth error detected in POST body:', {
-              error,
-              errorDescription,
+              error: parsedError,
+              errorDescription: parsedErrorDescription,
+              rawBody: body.substring(0, 200), // Log first 200 chars for debugging
             })
           }
         } catch (e) {
-          // Ignore parsing errors
+          // Ignore parsing errors, but log them for debugging
+          console.warn('⚠️ Error parsing POST body for OAuth errors:', e)
         }
       }
     } catch (e) {

@@ -75,7 +75,8 @@ output/
 *.jpg
 *.jpeg
 *.gif
-# Exception: permettre les GIFs dans docs/gifs/ pour le README
+# Exception: permettre les GIFs dans docs/gifs/ pour GitHub documentation uniquement
+# NOTE: docs/gifs/ n'est PAS utilisé par le bot (Render.com), seulement pour GitHub
 !docs/gifs/*.gif
 
 # Puppeteer cache (peut être volumineux, mais nécessaire pour Render)
