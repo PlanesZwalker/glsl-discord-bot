@@ -2709,8 +2709,8 @@ class RealWebGLCompiler {
                 
                 // Success! Break out of retry loop
                 break;
-                    
-                } catch (error) {
+                
+            } catch (error) {
                     // Check if this is a context loss error
                     const errorMsg = error.message || error.toString() || '';
                     const isContextLoss = errorMsg.toLowerCase().includes('context has been lost') ||
