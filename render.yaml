@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: glsl-discord-bot
+    env: node
+    plan: free
+    buildCommand: PUPPETEER_SKIP_DOWNLOAD=true npm install && mkdir -p /opt/render/project/.cache/puppeteer && PUPPETEER_CACHE_DIR=/opt/render/project/.cache/puppeteer npx puppeteer browsers install chrome
+    startCommand: npm run bot
+    healthCheckPath: /health
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: WEBGL_CANVAS_WIDTH
+        value: 800
+      - key: WEBGL_CANVAS_HEIGHT
+        value: 600
+      - key: WEBGL_FRAME_RATE
+        value: 30
+      - key: WEBGL_DURATION
+        value: 3
+      - key: DATABASE_PATH
+        value: ./data/shaders.db
+      - key: PUPPETEER_TIMEOUT
+        value: 30000
+      - key: PUPPETEER_HEADLESS
+        value: true
+      - key: MAX_SHADER_LENGTH
+        value: 10000
+      - key: MAX_COMPILATION_TIME
+        value: 30000
+      - key: LOG_LEVEL
+        value: info
+
