@@ -2503,36 +2503,68 @@ class RealWebGLCompiler {
             // Extraire les URLs de textures des options
             const textureUrls = options.textures || options.textureUrls || null;
             
-            // Charger les textures si fournies
-            if (textureUrls && Array.isArray(textureUrls)) {
-                console.log('📷 Chargement des textures...');
-                const loadSuccess = await compilationPage.evaluate(async (urls) => {
-                    return await window.loadTextures(urls);
-                }, textureUrls);
-                
-                if (!loadSuccess) {
-                    console.warn('⚠️ Certaines textures n\'ont pas pu être chargées');
-                }
-                
-                // Attendre un peu pour que les textures se chargent
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-            
-            // Mettre à jour le shader dans la page
+            // Retry logic for context loss (max 2 retries)
+            let maxRetries = 2;
+            let retryCount = 0;
             let updateSuccess;
             let updateError = null;
             let consoleErrors = [];
             
-            console.log(`🔍 Tentative de compilation du shader ${shaderType} (format: ${format})...`);
-            console.log(`📝 Longueur du code shader: ${shaderCode.length} caractères`);
-            
-            try {
-                // Capturer les erreurs de console avant l'appel
-                const errorsBefore = await compilationPage.evaluate(() => {
-                    return window.consoleErrors ? [...window.consoleErrors] : [];
-                });
-                
-                updateSuccess = await compilationPage.evaluate((code, urls, shaderFormat) => {
+            while (retryCount <= maxRetries) {
+                try {
+                    // If retrying, create a new page
+                    if (retryCount > 0) {
+                        console.log(`🔄 Tentative ${retryCount + 1}/${maxRetries + 1}: Création d'une nouvelle page après perte de contexte WebGL...`);
+                        
+                        // Close the old page
+                        if (compilationPage && !compilationPage.isClosed()) {
+                            try {
+                                await compilationPage.close();
+                            } catch (e) {
+                                // Ignore errors when closing
+                            }
+                        }
+                        
+                        // Create a new page
+                        compilationPage = await this.createCompilationPage(browser);
+                        compilationPage.setDefaultTimeout(this.compilationTimeout);
+                        compilationPage.setDefaultNavigationTimeout(this.compilationTimeout);
+                        console.log('✅ Nouvelle page de compilation créée');
+                        
+                        // Wait a bit for the page to stabilize
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                    
+                    // Charger les textures si fournies
+                    if (textureUrls && Array.isArray(textureUrls)) {
+                        console.log('📷 Chargement des textures...');
+                        const loadSuccess = await compilationPage.evaluate(async (urls) => {
+                            return await window.loadTextures(urls);
+                        }, textureUrls);
+                        
+                        if (!loadSuccess) {
+                            console.warn('⚠️ Certaines textures n\'ont pas pu être chargées');
+                        }
+                        
+                        // Attendre un peu pour que les textures se chargent
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
+                    
+                    // Mettre à jour le shader dans la page
+                    console.log(`🔍 Tentative de compilation du shader ${shaderType} (format: ${format})...`);
+                    console.log(`📝 Longueur du code shader: ${shaderCode.length} caractères`);
+                    
+                    // Reset errors
+                    updateError = null;
+                    consoleErrors = [];
+                    
+                    try {
+                        // Capturer les erreurs de console avant l'appel
+                        const errorsBefore = await compilationPage.evaluate(() => {
+                            return window.consoleErrors ? [...window.consoleErrors] : [];
+                        });
+                        
+                        updateSuccess = await compilationPage.evaluate((code, urls, shaderFormat) => {
                     try {
                         // Réinitialiser l'erreur précédente
                         window.lastShaderError = null;
@@ -2576,88 +2608,123 @@ class RealWebGLCompiler {
                         window.lastShaderErrorDetails = errorDetails;
                         
                         console.error('Erreur mise à jour shader:', errorMsg);
-                        return { error: errorMsg, details: errorDetails };
+                            return { error: errorMsg, details: errorDetails };
+                        }
+                    }, shaderCode, textureUrls, format);
+                    
+                    // Récupérer l'erreur de compilation WebGL si elle existe
+                    const shaderErrorInfo = await compilationPage.evaluate(() => {
+                        return {
+                            error: window.lastShaderError || null,
+                            details: window.lastShaderErrorDetails || null
+                        };
+                    });
+                    
+                    // Si on a une erreur WebGL détaillée, l'utiliser
+                    if (shaderErrorInfo.error) {
+                        console.error(`❌ Erreur compilation WebGL détectée: ${shaderErrorInfo.error}`);
+                        if (shaderErrorInfo.details) {
+                            console.error(`❌ Détails:`, JSON.stringify(shaderErrorInfo.details, null, 2));
+                        }
+                        updateError = shaderErrorInfo.error;
+                        updateSuccess = false;
+                    } else if (updateSuccess && typeof updateSuccess === 'object' && updateSuccess.error) {
+                        // Utiliser l'erreur capturée dans le catch
+                        updateError = updateSuccess.error;
+                        if (updateSuccess.details) {
+                            console.error(`❌ Détails erreur:`, JSON.stringify(updateSuccess.details, null, 2));
+                        }
+                        updateSuccess = false;
                     }
-                }, shaderCode, textureUrls, format);
-                
-                // Récupérer l'erreur de compilation WebGL si elle existe
-                const shaderErrorInfo = await compilationPage.evaluate(() => {
-                    return {
-                        error: window.lastShaderError || null,
-                        details: window.lastShaderErrorDetails || null
-                    };
-                });
-                
-                // Si on a une erreur WebGL détaillée, l'utiliser
-                if (shaderErrorInfo.error) {
-                    console.error(`❌ Erreur compilation WebGL détectée: ${shaderErrorInfo.error}`);
-                    if (shaderErrorInfo.details) {
-                        console.error(`❌ Détails:`, JSON.stringify(shaderErrorInfo.details, null, 2));
+                    
+                    // Capturer les erreurs de console après l'appel
+                    const errorsAfter = await compilationPage.evaluate(() => {
+                        return window.consoleErrors ? [...window.consoleErrors] : [];
+                    });
+                    
+                    // Extraire les nouvelles erreurs
+                    consoleErrors = errorsAfter.slice(errorsBefore.length);
+                    
+                    if (consoleErrors.length > 0) {
+                        console.log(`⚠️ ${consoleErrors.length} erreur(s) console capturée(s) pendant la compilation`);
                     }
-                    updateError = shaderErrorInfo.error;
+                } catch (error) {
+                    console.error('❌ Erreur lors de l\'évaluation updateShader:', error);
+                    console.error('❌ Stack trace:', error.stack);
+                    // Essayer d'extraire le message d'erreur réel
+                    if (error && error.message) {
+                        updateError = error.message;
+                    } else if (error && error.toString) {
+                        updateError = error.toString();
+                    } else {
+                        updateError = String(error);
+                    }
                     updateSuccess = false;
-                } else if (updateSuccess && typeof updateSuccess === 'object' && updateSuccess.error) {
-                    // Utiliser l'erreur capturée dans le catch
-                    updateError = updateSuccess.error;
-                    if (updateSuccess.details) {
-                        console.error(`❌ Détails erreur:`, JSON.stringify(updateSuccess.details, null, 2));
-                    }
-                    updateSuccess = false;
                 }
-                
-                // Capturer les erreurs de console après l'appel
-                const errorsAfter = await compilationPage.evaluate(() => {
-                    return window.consoleErrors ? [...window.consoleErrors] : [];
-                });
-                
-                // Extraire les nouvelles erreurs
-                consoleErrors = errorsAfter.slice(errorsBefore.length);
-                
-                if (consoleErrors.length > 0) {
-                    console.log(`⚠️ ${consoleErrors.length} erreur(s) console capturée(s) pendant la compilation`);
-                }
-            } catch (error) {
-                console.error('❌ Erreur lors de l\'évaluation updateShader:', error);
-                console.error('❌ Stack trace:', error.stack);
-                // Essayer d'extraire le message d'erreur réel
-                if (error && error.message) {
-                    updateError = error.message;
-                } else if (error && error.toString) {
-                    updateError = error.toString();
-                } else {
-                    updateError = String(error);
-                }
-                updateSuccess = false;
-            }
 
-            if (!updateSuccess) {
-                // Construire un message d'erreur détaillé
-                let errorMessage = 'Échec de la mise à jour du shader';
-                
-                if (updateError) {
-                    errorMessage += `: ${updateError}`;
-                }
-                
-                // Ajouter les erreurs de console si disponibles
-                if (consoleErrors && consoleErrors.length > 0) {
-                    const relevantErrors = consoleErrors.filter(err => 
-                        err && (
-                            err.toLowerCase().includes('error') ||
-                            err.toLowerCase().includes('shader') ||
-                            err.toLowerCase().includes('webgl') ||
-                            err.toLowerCase().includes('compilation')
-                        )
+                if (!updateSuccess) {
+                    // Check if this is a context loss error
+                    const isContextLoss = updateError && (
+                        updateError.toLowerCase().includes('context has been lost') ||
+                        updateError.toLowerCase().includes('context lost') ||
+                        (consoleErrors && consoleErrors.some(err => 
+                            err && err.toLowerCase().includes('context has been lost')
+                        ))
                     );
                     
-                    if (relevantErrors.length > 0) {
-                        errorMessage += `\nErreurs console: ${relevantErrors.join('; ')}`;
-                    } else if (consoleErrors.length > 0) {
-                        errorMessage += `\nErreurs console: ${consoleErrors.slice(0, 3).join('; ')}`;
+                    if (isContextLoss && retryCount < maxRetries) {
+                        console.warn(`⚠️ WebGL context lost, retrying (${retryCount + 1}/${maxRetries})...`);
+                        retryCount++;
+                        continue; // Retry with a new page
                     }
+                    
+                    // Construire un message d'erreur détaillé
+                    let errorMessage = 'Échec de la mise à jour du shader';
+                    
+                    if (updateError) {
+                        errorMessage += `: ${updateError}`;
+                    }
+                    
+                    // Ajouter les erreurs de console si disponibles
+                    if (consoleErrors && consoleErrors.length > 0) {
+                        const relevantErrors = consoleErrors.filter(err => 
+                            err && (
+                                err.toLowerCase().includes('error') ||
+                                err.toLowerCase().includes('shader') ||
+                                err.toLowerCase().includes('webgl') ||
+                                err.toLowerCase().includes('compilation')
+                            )
+                        );
+                        
+                        if (relevantErrors.length > 0) {
+                            errorMessage += `\nErreurs console: ${relevantErrors.join('; ')}`;
+                        } else if (consoleErrors.length > 0) {
+                            errorMessage += `\nErreurs console: ${consoleErrors.slice(0, 3).join('; ')}`;
+                        }
+                    }
+                    
+                    console.error(`❌ ${errorMessage}`);
+                    throw new Error(errorMessage);
                 }
                 
-                console.error(`❌ ${errorMessage}`);
-                throw new Error(errorMessage);
+                // Success! Break out of retry loop
+                break;
+                    
+                } catch (error) {
+                    // Check if this is a context loss error
+                    const errorMsg = error.message || error.toString() || '';
+                    const isContextLoss = errorMsg.toLowerCase().includes('context has been lost') ||
+                                         errorMsg.toLowerCase().includes('context lost');
+                    
+                    if (isContextLoss && retryCount < maxRetries) {
+                        console.warn(`⚠️ WebGL context lost during compilation, retrying (${retryCount + 1}/${maxRetries})...`);
+                        retryCount++;
+                        continue; // Retry with a new page
+                    }
+                    
+                    // Not a context loss error or max retries exceeded, rethrow
+                    throw error;
+                }
             }
 
             // Attendre que le shader se charge et se rende
