@@ -5076,7 +5076,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             }
                             
                             // IMPORTANT: Ne pas inclure Content-Type dans les headers - FormData le définit automatiquement avec boundary
-                            const headers = {
+                            let headers = {
                                 ...formData.getHeaders(),
                                 'Authorization': `Bot ${discordToken}`
                             };
@@ -5108,11 +5108,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             
                             // ✅ VÉRIFICATION FINALE ABSOLUE avant l'envoi à Discord
                             // Cette vérification est critique pour éviter l'erreur 50006
+                            // IMPORTANT: Si des embeds sont présents, le content peut être undefined (c'est OK)
                             const finalContent = payloadJson.content;
                             const finalContentTrimmed = finalContent?.trim() || '';
+                            const hasEmbeds = payloadJson.embeds && payloadJson.embeds.length > 0;
                             
-                            // Vérifier que le content est valide
-                            if (!finalContent || typeof finalContent !== 'string' || finalContentTrimmed.length === 0) {
+                            // Vérifier que le content est valide SEULEMENT s'il n'y a pas d'embeds
+                            // Si des embeds sont présents, Discord accepte les embeds seuls sans content
+                            if (!hasEmbeds && (!finalContent || typeof finalContent !== 'string' || finalContentTrimmed.length === 0)) {
                                 console.error('❌ ERREUR CRITIQUE: Content est vide/invalide juste avant l\'envoi!');
                                 console.error(`  - Content original: ${JSON.stringify(finalContent)}`);
                                 console.error(`  - Content type: ${typeof finalContent}`);
