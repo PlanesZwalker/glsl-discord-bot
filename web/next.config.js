@@ -7,6 +7,9 @@ const nextConfig = {
   // Exclure les GIFs du bundle serverless (ils sont servis depuis GitHub raw)
   // Note: outputFileTracingExcludes ne fonctionne pas toujours correctement
   // Les GIFs sont servis depuis GitHub raw dans ShaderGallery, pas depuis le système de fichiers
+  // Utiliser serverComponentsExternalPackages pour exclure better-sqlite3 du bundle
+  serverComponentsExternalPackages: ['better-sqlite3'],
+  
   experimental: {
     outputFileTracingExcludes: {
       // Exclure pour toutes les routes API
@@ -22,6 +25,13 @@ const nextConfig = {
       ],
       // Exclure spécifiquement pour la route image qui cause le problème
       '/api/shaders/[id]/image': [
+        '../docs/**/*',
+        '../data/**/*',
+        '../output/**/*',
+        '../cache/**/*',
+      ],
+      // Exclure pour la route GIF aussi
+      '/api/shaders/[id]/gif': [
         '../docs/**/*',
         '../data/**/*',
         '../output/**/*',

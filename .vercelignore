@@ -1,0 +1,20 @@
+# Exclure les GIFs du bundle Vercel (ils sont servis depuis GitHub raw)
+docs/gifs/
+
+# Exclure les fichiers de données qui ne sont pas nécessaires dans le bundle
+data/
+output/
+cache/
+
+# Exclure les fichiers de test
+tests/
+coverage/
+
+# Exclure les fichiers de configuration locaux
+.env
+.env.local
+
+# Exclure les fichiers de build
+.next/
+node_modules/
+

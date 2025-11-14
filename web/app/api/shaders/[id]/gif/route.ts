@@ -69,13 +69,28 @@ export async function GET(
 
     // IMPORTANT: Ne jamais lire depuis docs/gifs/ en production (Vercel)
     // Ces fichiers sont servis depuis GitHub raw et ne doivent pas être dans le bundle
-    if (shader.gif_path && shader.gif_path.includes('docs/gifs/')) {
+    // Vérifier AVANT toute opération fs pour éviter que Vercel les inclue
+    if (shader.gif_path && (shader.gif_path.includes('docs/gifs/') || shader.gif_path.includes('docs\\gifs\\'))) {
       console.warn(`[GIF API] Attempted to read from docs/gifs/ - redirecting to GitHub raw`)
       const shaderName = path.basename(shader.gif_path, path.extname(shader.gif_path))
       return NextResponse.redirect(
         `https://raw.githubusercontent.com/PlanesZwalker/glsl-discord-bot/master/docs/gifs/${shaderName}.gif`,
         302
       )
+    }
+
+    // En production Vercel, ne jamais accéder au système de fichiers pour les GIFs
+    // Utiliser uniquement le bot API ou retourner une erreur
+    const isVercel = process.env.VERCEL === '1' || process.env.NEXT_PUBLIC_VERCEL === '1'
+    if (isVercel) {
+      // En production Vercel, on ne peut pas lire depuis le système de fichiers
+      // Retourner une erreur ou rediriger vers le bot API
+      console.warn(`[GIF API] Vercel production - cannot read from filesystem, returning 404`)
+      return NextResponse.json({ 
+        error: 'File not available',
+        message: 'In production, GIFs are served from the bot API. Please use the bot API endpoint.',
+        shaderId: params.id
+      }, { status: 404 })
     }
 
     const gifPath = path.isAbsolute(shader.gif_path) 
