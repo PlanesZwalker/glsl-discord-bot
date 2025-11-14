@@ -9,6 +9,15 @@ export default withAuth(
     console.log('🔍 Middleware - Path:', pathname)
     console.log('🔍 Middleware - Has Token:', !!token)
     
+    // En mode développement local, permettre l'accès au dashboard sans authentification
+    const isLocalDev = process.env.NODE_ENV === 'development' && 
+                       (req.nextUrl.hostname === 'localhost' || req.nextUrl.hostname === '127.0.0.1')
+    
+    if (isLocalDev && pathname.startsWith('/dashboard')) {
+      console.log('✅ Middleware - Mode développement local, autorisation dashboard sans authentification')
+      return NextResponse.next()
+    }
+    
     // Si authentifié et accédant au dashboard, autoriser
     if (token && pathname.startsWith('/dashboard')) {
       console.log('✅ Middleware - Authentifié, autorisation dashboard')
