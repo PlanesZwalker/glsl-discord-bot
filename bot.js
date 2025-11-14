@@ -5723,7 +5723,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         });
         
         // Gérer la fermeture gracieuse du serveur
-        gracefulShutdown.onShutdown(async () => {
+        gracefulShutdown.registerCleanup('expressServer', async () => {
             console.log(' gracefulShutdown: Fermeture du serveur Express...');
             if (this.server) {
                 await new Promise(resolve => this.server.close(resolve));
