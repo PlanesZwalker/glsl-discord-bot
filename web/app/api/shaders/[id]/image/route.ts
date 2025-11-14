@@ -69,6 +69,19 @@ export async function GET(
 
     // Check if image_path is a file (GIF) or a directory (frames)
     const imagePath = shader.image_path
+    
+    // IMPORTANT: Ne jamais lire depuis docs/gifs/ en production (Vercel)
+    // Ces fichiers sont servis depuis GitHub raw et ne doivent pas être dans le bundle
+    if (imagePath && imagePath.includes('docs/gifs/')) {
+      console.warn(`[Image API] Attempted to read from docs/gifs/ - redirecting to GitHub raw`)
+      // Rediriger vers GitHub raw si c'est un shader prédéfini
+      const shaderName = path.basename(imagePath, path.extname(imagePath))
+      return NextResponse.redirect(
+        `https://raw.githubusercontent.com/PlanesZwalker/glsl-discord-bot/master/docs/gifs/${shaderName}.gif`,
+        302
+      )
+    }
+    
     // Handle both absolute and relative paths
     let fullPath: string
     if (path.isAbsolute(imagePath)) {

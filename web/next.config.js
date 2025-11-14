@@ -5,11 +5,24 @@ const nextConfig = {
     domains: ['cdn.discordapp.com', 'discord.com'],
   },
   // Exclure les GIFs du bundle serverless (ils sont servis depuis GitHub raw)
+  // Note: outputFileTracingExcludes ne fonctionne pas toujours correctement
+  // Les GIFs sont servis depuis GitHub raw dans ShaderGallery, pas depuis le système de fichiers
   experimental: {
     outputFileTracingExcludes: {
-      '*': [
-        '../docs/gifs/**/*',
-        'docs/gifs/**/*',
+      // Exclure pour toutes les routes API
+      '/api/**': [
+        '../docs/**/*',
+        '../data/**/*',
+        '../output/**/*',
+        '../cache/**/*',
+        'docs/**/*',
+        'data/**/*',
+        'output/**/*',
+        'cache/**/*',
+      ],
+      // Exclure spécifiquement pour la route image qui cause le problème
+      '/api/shaders/[id]/image': [
+        '../docs/**/*',
         '../data/**/*',
         '../output/**/*',
         '../cache/**/*',
