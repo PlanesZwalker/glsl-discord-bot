@@ -4740,16 +4740,17 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 payloadJson.components = options.components;
                             }
                             
-                            // CRITIQUE: Avec FormData + fichiers, Discord nécessite ABSOLUMENT un content non-vide
-                            // D'après la doc Discord (code 50006), le message ne peut pas être vide
-                            // SOLUTION: Utiliser un texte réel (pas d'emoji seul, Discord peut le rejeter)
-                            // Utiliser un texte minimal mais descriptif
-                            if (!options.content || options.content.trim() === '') {
-                                // Utiliser un texte réel au lieu d'un emoji seul
-                                payloadJson.content = 'Shader animation'; // Texte réel - Discord l'accepte
+                            // CRITIQUE: Avec FormData + fichiers + embeds, Discord nécessite un content non-vide
+                            // Discord code 50006: "Cannot send an empty message"
+                            // IMPORTANT: Le content doit être une chaîne non vide et non trimmable
+                            // Ne pas utiliser d'emoji seul car Discord peut le rejeter dans certains cas
+                            // Utiliser un texte réel minimal mais descriptif
+                            
+                            // Toujours définir un content si pas fourni
+                            if (!options.content || typeof options.content !== 'string' || options.content.trim().length === 0) {
+                                payloadJson.content = 'Shader animation'; // Texte réel minimal
                                 console.log('✅ FormData - ajout texte réel comme content (Discord nécessite un texte non-vide)');
                             } else {
-                                // Si un content réel est fourni, l'utiliser
                                 payloadJson.content = options.content;
                                 console.log('✅ FormData - content réel fourni, utilisation');
                             }
@@ -4765,11 +4766,20 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 }
                             }
                             
-                            // Vérification finale: s'assurer que le content est toujours présent et non vide
-                            // Discord code 50006: "Cannot send an empty message"
-                            if (!payloadJson.content || typeof payloadJson.content !== 'string' || payloadJson.content.trim().length === 0) {
-                                payloadJson.content = 'Shader animation'; // Texte réel comme fallback absolu
-                                console.log('⚠️ FormData - content vide détecté, utilisation du fallback');
+                            // Vérification finale ABSOLUE: s'assurer que le content est toujours présent et non vide
+                            // Cette vérification est critique pour éviter l'erreur 50006
+                            if (!payloadJson.content || typeof payloadJson.content !== 'string') {
+                                payloadJson.content = 'Shader animation';
+                                console.log('⚠️ FormData - content manquant, utilisation du fallback');
+                            } else if (payloadJson.content.trim().length === 0) {
+                                payloadJson.content = 'Shader animation';
+                                console.log('⚠️ FormData - content vide après trim, utilisation du fallback');
+                            }
+                            
+                            // Vérification finale: s'assurer qu'on a au moins content OU embeds
+                            if (!payloadJson.content && (!payloadJson.embeds || payloadJson.embeds.length === 0)) {
+                                payloadJson.content = 'Shader animation';
+                                console.log('⚠️ FormData - payload complètement vide, ajout content de secours');
                             }
                             
                             // Stringify le JSON - utiliser JSON.stringify sans replacer pour préserver l'emoji
