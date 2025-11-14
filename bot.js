@@ -4950,12 +4950,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 payloadJson.content = 'Shader compilé et prêt !';
                             }
                             
-                            // Avec FormData, Discord nécessite un content même avec des embeds
-                            // S'assurer qu'on a toujours un content (même minimal) si on a des embeds
+                            // Avec FormData, Discord nécessite un content réel (pas invisible) même avec des embeds
+                            // S'assurer qu'on a toujours un content (espace réel) si on a des embeds
                             if (payloadJson.embeds && payloadJson.embeds.length > 0) {
                                 if (!payloadJson.content || payloadJson.content.trim() === '' || payloadJson.content.trim().length <= 2) {
-                                    payloadJson.content = '\u200b'; // Zero-width space
-                                    console.log('⚠️ Embeds présents - ajout content minimal (zero-width space) pour FormData');
+                                    payloadJson.content = ' '; // Espace réel (Discord accepte un espace avec embeds)
+                                    console.log('⚠️ Embeds présents - ajout content minimal (espace) pour FormData');
                                 }
                             }
                             
@@ -4965,12 +4965,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             // Vérification finale avant l'envoi
                             const finalPayloadObj = JSON.parse(payloadJsonString);
                             
-                            // Avec FormData, Discord nécessite un content même avec des embeds
-                            // S'assurer qu'on a toujours un content (même minimal) si on a des embeds
+                            // Avec FormData, Discord nécessite un content réel (pas invisible) même avec des embeds
+                            // S'assurer qu'on a toujours un content (espace réel) si on a des embeds
                             if (finalPayloadObj.embeds && finalPayloadObj.embeds.length > 0) {
                                 if (!finalPayloadObj.content || finalPayloadObj.content.trim() === '' || finalPayloadObj.content.trim().length <= 2) {
-                                    console.log('⚠️ Correction finale: ajout content minimal (zero-width space) car embeds présents');
-                                    finalPayloadObj.content = '\u200b'; // Zero-width space
+                                    console.log('⚠️ Correction finale: ajout content minimal (espace) car embeds présents');
+                                    finalPayloadObj.content = ' '; // Espace réel (Discord accepte un espace avec embeds)
                                     payloadJsonString = JSON.stringify(finalPayloadObj, null, 0);
                                 }
                             } else if (!finalPayloadObj.content || finalPayloadObj.content.trim() === '' || finalPayloadObj.content.trim().length <= 2) {
