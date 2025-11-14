@@ -5475,25 +5475,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
             // Type 2: APPLICATION_COMMAND
             else if (body.type === 2) {
                 const commandName = body.data?.name;
-                const userId = body.member?.user?.id || body.user?.id;
-                const userName = body.member?.user?.username || body.user?.username;
-                const commandLockKey = `command_lock:${userId}:${commandName}`;
-                
-                // Vérifier si la commande est déjà en cours pour cet utilisateur
-                if (this.activeCommands.has(commandLockKey)) {
-                    console.warn(`⚠️ Commande ${commandName} déjà en cours pour l'utilisateur ${userName}. Ignoré.`);
-                    return res.status(200).send({
-                        type: 4, // CHANNEL_MESSAGE_WITH_SOURCE
-                        data: {
-                            content: '⏳ Votre précédente commande est toujours en cours. Veuillez patienter.',
-                            flags: 64 // EPHEMERAL
-                        }
-                    });
-                }
-                
-                // Acquérir un verrou pour cette commande et cet utilisateur
-                this.activeCommands.add(commandLockKey);
-                console.log(`🔒 Verrou acquis pour ${commandLockKey}`);
                 
                 // Répondre immédiatement à Discord pour éviter le timeout (type 5)
                 res.status(200).send({
@@ -5501,14 +5482,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                 });
                 
                 // Exécuter la commande en arrière-plan
+                // handleInteractionFromHTTP gère le verrou et la vérification de duplication
                 this.handleInteractionFromHTTP(body, req, res)
                     .then(() => console.log(`✅ Traitement en arrière-plan de ${commandName} terminé.`))
-                    .catch(err => console.error(`❌ Erreur traitement en arrière-plan de ${commandName}:`, err))
-                    .finally(() => {
-                        // Le verrou est libéré dans handleInteractionFromHTTP.
-                        // Ici, on s'assure qu'il est libéré même si handleInteractionFromHTTP échoue avant le finally.
-                        // Mais le finally de handleInteractionFromHTTP est plus approprié pour le délai.
-                    });
+                    .catch(err => console.error(`❌ Erreur traitement en arrière-plan de ${commandName}:`, err));
             }
             // Type 4: APPLICATION_COMMAND_AUTOCOMPLETE
             else if (body.type === 4) {
