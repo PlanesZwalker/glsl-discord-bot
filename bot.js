@@ -4715,9 +4715,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             
                             console.log(`📎 Envoi de ${options.files.length} fichier(s) via FormData`);
                             
-                            // IMPORTANT: Avec FormData + fichiers + embeds, Discord accepte embeds seuls SANS content
-                            // Discord trim les espaces, donc content: " " devient "" = message vide = erreur
-                            // Solution: Supprimer complètement le content si on a des embeds avec FormData
+                            // IMPORTANT: Avec FormData + fichiers + embeds, Discord nécessite un content non-vide
+                            // Discord trim les espaces normaux, donc content: " " devient "" = message vide = erreur
+                            // SOLUTION: Utiliser Zero-Width Space (\u200B) qui est invisible mais valide pour Discord
                             
                             // Préparer le payload JSON
                             const embedsJson = options.embeds ? options.embeds.map(embed => {
@@ -4740,28 +4740,17 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 payloadJson.components = options.components;
                             }
                             
-                            // CRITIQUE: Avec FormData + embeds, Discord accepte embeds seuls SANS content
-                            // Ne PAS ajouter de content si on a des embeds (Discord trim les espaces)
-                            if (payloadJson.embeds && payloadJson.embeds.length > 0) {
-                                // Si on a des embeds, ne PAS inclure de content (même pas un espace)
-                                // Discord accepte embeds seuls avec payload_json dans FormData
-                                if (options.content && options.content.trim().length > 0) {
-                                    // Si un content réel est fourni, l'inclure
-                                    payloadJson.content = options.content;
-                                    console.log('✅ FormData avec embeds - content réel fourni, inclusion');
-                                } else {
-                                    // Pas de content - Discord accepte embeds seuls
-                                    console.log('✅ FormData avec embeds - pas de content (Discord accepte embeds seuls)');
-                                }
+                            // CRITIQUE: Avec FormData, Discord nécessite un content non-vide
+                            // Même avec des embeds, il faut un content textuel
+                            // Utiliser Zero-Width Space (\u200B) qui est invisible mais valide
+                            if (!options.content || options.content.trim() === '') {
+                                // Si pas de content, utiliser Zero-Width Space (invisible mais valide)
+                                payloadJson.content = '\u200B'; // Zero-Width Space - Discord ne le trim pas
+                                console.log('✅ FormData - ajout Zero-Width Space comme content (invisible mais valide)');
                             } else {
-                                // Pas d'embeds, on DOIT avoir un content
-                                if (options.content && options.content.trim().length > 0) {
-                                    payloadJson.content = options.content;
-                                } else {
-                                    // Pas d'embeds et pas de content - ajouter un message par défaut
-                                    payloadJson.content = 'Shader compilé et prêt !';
-                                    console.log('⚠️ FormData sans embeds - ajout content par défaut');
-                                }
+                                // Si un content réel est fourni, l'utiliser
+                                payloadJson.content = options.content;
+                                console.log('✅ FormData - content réel fourni, utilisation');
                             }
                             
                             // Valider que les embeds sont correctement formatés
@@ -4792,6 +4781,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             console.log(`📤 Payload JSON préparé: ${payloadJsonString.substring(0, 200)}...`);
                             console.log(`📋 Payload contient embeds: ${!!payloadJson.embeds && payloadJson.embeds.length > 0}`);
                             console.log(`📋 Payload contient content: ${!!payloadJson.content} (length: ${payloadJson.content?.length || 0})`);
+                            console.log(`📋 Content value: ${JSON.stringify(payloadJson.content)}`);
                             
                             // Ajouter les fichiers au FormData
                             for (let i = 0; i < options.files.length; i++) {
