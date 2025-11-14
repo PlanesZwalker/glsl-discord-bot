@@ -4715,9 +4715,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             
                             console.log(`📎 Envoi de ${options.files.length} fichier(s) via FormData`);
                             
-                            // IMPORTANT: Avec FormData + fichiers, Discord nécessite TOUJOURS un content
-                            // Même avec des embeds, Discord rejette un message sans content lors de l'utilisation de FormData
-                            // Solution: TOUJOURS s'assurer qu'on a un content (même un espace ' ') avec FormData
+                            // IMPORTANT: Avec FormData + fichiers + embeds, Discord accepte embeds seuls SANS content
+                            // Discord trim les espaces, donc content: " " devient "" = message vide = erreur
+                            // Solution: Supprimer complètement le content si on a des embeds avec FormData
                             
                             // Préparer le payload JSON
                             const embedsJson = options.embeds ? options.embeds.map(embed => {
@@ -4735,22 +4735,33 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 payloadJson.embeds = embedsJson;
                             }
                             
-                            // Ajouter content s'il existe
-                            if (options.content) {
-                                payloadJson.content = options.content;
-                            }
-                            
                             // Ajouter components s'ils existent
                             if (options.components) {
                                 payloadJson.components = options.components;
                             }
                             
-                            // CRITIQUE: Avec FormData + fichiers, Discord nécessite TOUJOURS un content
-                            // Ne JAMAIS supprimer le content avec FormData, même avec embeds
-                            if (!payloadJson.content || payloadJson.content.trim() === '' || payloadJson.content.trim().length <= 2) {
-                                // Utiliser un espace réel (pas zero-width space) car Discord peut rejeter les caractères invisibles
-                                payloadJson.content = ' '; // Espace requis par Discord avec FormData
-                                console.log('✅ FormData détecté - ajout content minimal (espace) car requis par Discord');
+                            // CRITIQUE: Avec FormData + embeds, Discord accepte embeds seuls SANS content
+                            // Ne PAS ajouter de content si on a des embeds (Discord trim les espaces)
+                            if (payloadJson.embeds && payloadJson.embeds.length > 0) {
+                                // Si on a des embeds, ne PAS inclure de content (même pas un espace)
+                                // Discord accepte embeds seuls avec payload_json dans FormData
+                                if (options.content && options.content.trim().length > 0) {
+                                    // Si un content réel est fourni, l'inclure
+                                    payloadJson.content = options.content;
+                                    console.log('✅ FormData avec embeds - content réel fourni, inclusion');
+                                } else {
+                                    // Pas de content - Discord accepte embeds seuls
+                                    console.log('✅ FormData avec embeds - pas de content (Discord accepte embeds seuls)');
+                                }
+                            } else {
+                                // Pas d'embeds, on DOIT avoir un content
+                                if (options.content && options.content.trim().length > 0) {
+                                    payloadJson.content = options.content;
+                                } else {
+                                    // Pas d'embeds et pas de content - ajouter un message par défaut
+                                    payloadJson.content = 'Shader compilé et prêt !';
+                                    console.log('⚠️ FormData sans embeds - ajout content par défaut');
+                                }
                             }
                             
                             // Valider que les embeds sont correctement formatés
