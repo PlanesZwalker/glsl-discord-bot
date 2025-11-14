@@ -4791,8 +4791,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                     test: async () => {
                                         const restPayload = {
                                             embeds: embedsJson,
-                                            components: options.components,
-                                            content: options.content || 'Shader animation'
+                                            components: options.components
+                                            // Ne pas inclure content si on a des embeds - Discord affichera l'embed avec l'image
                                         };
                                         await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
                                             body: restPayload,
@@ -4806,8 +4806,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                     test: async () => {
                                         const restPayload = {
                                             embeds: embedsJson,
-                                            components: options.components,
-                                            content: options.content || 'Shader animation'
+                                            components: options.components
+                                            // Ne pas inclure content si on a des embeds
                                         };
                                         const fileAttachments = filePaths.map(fp => ({
                                             attachment: fp.path || fp.buffer || fp.stream,
@@ -4825,8 +4825,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                     test: async () => {
                                         const restPayload = {
                                             embeds: embedsJson,
-                                            components: options.components,
-                                            content: options.content || 'Shader animation'
+                                            components: options.components
+                                            // Ne pas inclure content si on a des embeds
                                         };
                                         const fileAttachments = filePaths.filter(fp => fp.path).map(fp => fp.path);
                                         await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
@@ -4841,8 +4841,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                     test: async () => {
                                         const restPayload = {
                                             embeds: embedsJson,
-                                            components: options.components,
-                                            content: options.content || 'Shader animation'
+                                            components: options.components
+                                            // Ne pas inclure content si on a des embeds
                                         };
                                         const fileAttachments = filePaths.map(fp => {
                                             if (fp.buffer) return fp.buffer;
