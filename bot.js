@@ -4746,19 +4746,38 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             // Ne pas utiliser d'emoji seul car Discord peut le rejeter dans certains cas
                             // Utiliser un texte réel minimal mais descriptif
                             
-                            // FORCER l'utilisation d'un texte réel (pas d'emoji) pour FormData
-                            // Discord rejette les emojis seuls avec FormData + fichiers
-                            if (!options.content || typeof options.content !== 'string' || options.content.trim().length === 0) {
-                                payloadJson.content = 'Shader animation'; // Texte réel minimal
-                                console.log('✅ FormData - ajout texte réel comme content (Discord nécessite un texte non-vide)');
+                            // FORCER l'utilisation d'un texte réel (pas d'emoji, pas d'espaces) pour FormData
+                            // Discord rejette les emojis seuls, les espaces, et les chaînes vides avec FormData + fichiers
+                            const DEFAULT_CONTENT = 'Shader animation'; // Texte réel minimal garanti
+                            
+                            // Fonction pour détecter si une chaîne est principalement un emoji
+                            const isEmojiOrInvalid = (str) => {
+                                if (!str || typeof str !== 'string') return true;
+                                const trimmed = str.trim();
+                                if (trimmed.length === 0) return true;
+                                // Détecter les emojis (y compris multi-codepoint comme flags, keycaps, etc.)
+                                // Pattern amélioré pour détecter les emojis Unicode (y compris les séquences)
+                                const emojiPattern = /^[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E0}-\u{1F1FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{200D}\u{FE0F}\u{20E3}]+$/u;
+                                // Si c'est très court (<= 3 caractères) et correspond au pattern emoji, c'est probablement un emoji
+                                if (trimmed.length <= 3 && emojiPattern.test(trimmed)) return true;
+                                // Si c'est seulement des caractères d'espacement Unicode
+                                if (/^[\s\u200B-\u200D\uFEFF]+$/.test(trimmed)) return true;
+                                return false;
+                            };
+                            
+                            // Déterminer le content à utiliser
+                            if (!options.content || typeof options.content !== 'string') {
+                                payloadJson.content = DEFAULT_CONTENT;
+                                console.log('✅ FormData - content manquant, utilisation du texte par défaut');
                             } else {
-                                // Même si un content est fourni, vérifier qu'il n'est pas juste un emoji
                                 const trimmedContent = options.content.trim();
-                                // Si le content est très court (<= 2 caractères) ou est juste un emoji, utiliser le texte par défaut
-                                if (trimmedContent.length <= 2 || /^[\u{1F300}-\u{1F9FF}]$/u.test(trimmedContent)) {
-                                    payloadJson.content = 'Shader animation';
-                                    console.log('⚠️ FormData - content fourni est un emoji ou trop court, utilisation du texte par défaut');
+                                
+                                // Vérifier si le content est valide (non vide, pas seulement emoji/espace)
+                                if (trimmedContent.length === 0 || isEmojiOrInvalid(trimmedContent)) {
+                                    payloadJson.content = DEFAULT_CONTENT;
+                                    console.log('⚠️ FormData - content invalide (vide, emoji, ou espace), utilisation du texte par défaut');
                                 } else {
+                                    // Content valide, l'utiliser
                                     payloadJson.content = options.content;
                                     console.log('✅ FormData - content réel fourni, utilisation');
                                 }
@@ -4775,20 +4794,39 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 }
                             }
                             
-                            // Vérification finale ABSOLUE: s'assurer que le content est toujours présent et non vide
+                            // Vérification finale ABSOLUE: s'assurer que le content est toujours présent, non vide, et valide
                             // Cette vérification est critique pour éviter l'erreur 50006
+                            const DEFAULT_CONTENT_FINAL = 'Shader animation';
+                            
                             if (!payloadJson.content || typeof payloadJson.content !== 'string') {
-                                payloadJson.content = 'Shader animation';
-                                console.log('⚠️ FormData - content manquant, utilisation du fallback');
-                            } else if (payloadJson.content.trim().length === 0) {
-                                payloadJson.content = 'Shader animation';
-                                console.log('⚠️ FormData - content vide après trim, utilisation du fallback');
+                                payloadJson.content = DEFAULT_CONTENT_FINAL;
+                                console.log('⚠️ FormData - content manquant (final check), utilisation du fallback');
+                            } else {
+                                const trimmedFinal = payloadJson.content.trim();
+                                if (trimmedFinal.length === 0 || isEmojiOrInvalid(trimmedFinal)) {
+                                    payloadJson.content = DEFAULT_CONTENT_FINAL;
+                                    console.log('⚠️ FormData - content invalide après vérification finale, utilisation du fallback');
+                                }
                             }
                             
                             // Vérification finale: s'assurer qu'on a au moins content OU embeds
                             if (!payloadJson.content && (!payloadJson.embeds || payloadJson.embeds.length === 0)) {
-                                payloadJson.content = 'Shader animation';
+                                payloadJson.content = DEFAULT_CONTENT_FINAL;
                                 console.log('⚠️ FormData - payload complètement vide, ajout content de secours');
+                            }
+                            
+                            // LOGGING CRITIQUE avant l'envoi à Discord API
+                            console.log('🔍 DIAGNOSTIC FINAL avant envoi Discord API:');
+                            console.log(`  - Content final: "${payloadJson.content}" (type: ${typeof payloadJson.content}, length: ${payloadJson.content?.length || 0})`);
+                            console.log(`  - Content trimmed: "${payloadJson.content?.trim()}" (length: ${payloadJson.content?.trim()?.length || 0})`);
+                            console.log(`  - Embeds count: ${payloadJson.embeds?.length || 0}`);
+                            console.log(`  - Files count: ${options.files?.length || 0}`);
+                            console.log(`  - Payload JSON keys: ${Object.keys(payloadJson).join(', ')}`);
+                            
+                            // Validation finale stricte
+                            if (!payloadJson.content || payloadJson.content.trim().length === 0) {
+                                console.error('❌ ERREUR CRITIQUE: Content est vide après toutes les vérifications!');
+                                payloadJson.content = DEFAULT_CONTENT_FINAL;
                             }
                             
                             // Stringify le JSON - utiliser JSON.stringify sans replacer pour préserver l'emoji
@@ -5000,7 +5038,25 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             console.log(`  - Nombre de fichiers: ${options.files.length}`);
                             console.log(`  - Payload JSON length: ${payloadJsonString.length}`);
                             console.log(`  - Content dans payload: ${!!payloadJson.content ? `"${payloadJson.content}"` : 'N/A'} (length: ${payloadJson.content?.length || 0})`);
+                            console.log(`  - Content trimmed: "${payloadJson.content?.trim()}" (length: ${payloadJson.content?.trim()?.length || 0})`);
                             console.log(`  - Embeds dans payload: ${payloadJson.embeds?.length || 0}`);
+                            
+                            // Validation des fichiers avant envoi
+                            for (let i = 0; i < options.files.length; i++) {
+                                const file = options.files[i];
+                                const filePath = typeof file.attachment === 'string' ? file.attachment : 'unknown';
+                                const fileExists = typeof file.attachment === 'string' && fs.existsSync(file.attachment);
+                                let fileSize = 0;
+                                if (fileExists) {
+                                    try {
+                                        const stats = fs.statSync(file.attachment);
+                                        fileSize = stats.size;
+                                    } catch (e) {
+                                        // Ignorer
+                                    }
+                                }
+                                console.log(`  - Fichier ${i}: ${file.name || 'unnamed'} (path: ${filePath}, exists: ${fileExists}, size: ${fileSize} bytes)`);
+                            }
                             
                             try {
                                 const response = await fetch(webhookUrl, {
