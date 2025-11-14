@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
     const isLocalDev = process.env.NODE_ENV === 'development'
     const isLocalhost = request.headers.get('host')?.includes('localhost')
     
-    if (!isLocalDev || !isLocalhost) {
+    // Si on n'est PAS en local, exiger l'authentification
+    if (!(isLocalDev && isLocalhost)) {
       if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
@@ -89,7 +90,7 @@ export async function GET(request: NextRequest) {
     
     // Top shaders (par likes)
     const topShaders = db.prepare(`
-      SELECT id, name, likes, views, created_at
+      SELECT id, likes, views, created_at
       FROM shaders
       ${userId ? 'WHERE user_id = ?' : ''}
       ORDER BY likes DESC, views DESC
@@ -111,15 +112,19 @@ export async function GET(request: NextRequest) {
       })),
       topShaders: topShaders.map(shader => ({
         id: shader.id,
-        name: shader.name || `Shader #${shader.id}`,
+        name: `Shader #${shader.id}`,
         likes: shader.likes || 0,
         views: shader.views || 0,
         created_at: shader.created_at
       }))
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching stats:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error stack:', error?.stack)
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      message: error?.message || 'Unknown error'
+    }, { status: 500 })
   }
 }
 

@@ -22,12 +22,13 @@ export async function GET(request: NextRequest) {
     const isLocalDev = process.env.NODE_ENV === 'development'
     const isLocalhost = request.headers.get('host')?.includes('localhost')
     
-    if (!isLocalDev || !isLocalhost) {
+    // Si on n'est PAS en local, exiger l'authentification
+    if (!(isLocalDev && isLocalhost)) {
       // En production, nécessiter une session
       if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
-      if (userId !== session.user.id) {
+      if (userId && userId !== session.user.id) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     }

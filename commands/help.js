@@ -29,7 +29,7 @@ module.exports = {
                     },
                     {
                         name: '🎨 `/shader <code>`',
-                        value: '• Generates a 3-second animated GIF at 30 FPS\n' +
+                        value: '• Generates a 2-second animated GIF at 30 FPS (60 frames)\n' +
                                '• Supports textures: `texture0`, `texture1`, `texture2`, `texture3` (like Shadertoy)\n' +
                                '• Optional `name` parameter for easy search later\n' +
                                '• Example: `/shader code:"void mainImage(out vec4 fragColor, in vec2 fragCoord) { fragColor = vec4(1.0, 0.0, 0.0, 1.0); }"`',
@@ -45,12 +45,13 @@ module.exports = {
                     },
                     {
                         name: '✨ `/shader-generate`',
-                        value: '• **Shape:** circle, square, triangle, star, heart, hexagon, diamond, line, grid, voronoi\n' +
-                               '• **Color:** red, green, blue, yellow, purple, orange, pink, cyan, white, black, rainbow, warm, cool\n' +
-                               '• **Animation:** rotation, pulse, wave, zoom, translate, color_shift, twinkle, none\n' +
-                               '• **Speed:** slow, normal, fast (optional)\n' +
+                        value: '• **Shape:** Circle, Square, Triangle, Star, Heart, Hexagon, Diamond, Line, Grid, Voronoi\n' +
+                               '• **Color:** Red, Green, Blue, Yellow, Purple, Orange, Pink, Cyan, White, Black, Rainbow, Warm, Cool\n' +
+                               '• **Animation:** Rotation, Pulse, Wave, Zoom, Translate, Color_Shift, Twinkle, None\n' +
+                               '• **Speed:** Slow, Normal, Fast (optional)\n' +
                                '• **Size:** 1-10 (optional, default: 5)\n' +
-                               '• Example: `/shader-generate shape:circle color:blue animation:rotation speed:fast size:7`',
+                               '• Example: `/shader-generate shape:circle color:blue animation:rotation speed:fast size:7`\n' +
+                               '  *(💡 Tip: Use Tab/autocomplete - Discord shows "Circle" but sends "circle" automatically)*',
                         inline: false
                     },
                     {
@@ -73,7 +74,7 @@ module.exports = {
                     },
                     {
                         name: '💡 Tips',
-                        value: '• All commands generate 3-second animated GIFs at 30 FPS\n' +
+                        value: '• All commands generate 2-second animated GIFs at 30 FPS (60 frames)\n' +
                                '• Use autocomplete (Tab) to see available options\n' +
                                '• Shaders are saved to your dashboard for easy access\n' +
                                '• Visit the web dashboard to view all your compiled shaders',

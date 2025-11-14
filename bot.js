@@ -4740,15 +4740,17 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 payloadJson.components = options.components;
                             }
                             
-                            // CRITIQUE: Avec FormData + fichiers + embeds, Discord nécessite un content non-vide
-                            // Discord code 50006: "Cannot send an empty message"
-                            // IMPORTANT: Le content doit être une chaîne non vide et non trimmable
-                            // Ne pas utiliser d'emoji seul car Discord peut le rejeter dans certains cas
-                            // Utiliser un texte réel minimal mais descriptif
+                            // CRITIQUE: Avec FormData + fichiers + embeds, Discord PEUT rejeter le message
+                            // Si des embeds sont présents, Discord accepte les embeds seuls sans content
+                            // Ne pas ajouter de content si des embeds sont présents pour éviter l'erreur 50006
                             
                             // FORCER l'utilisation d'un texte réel (pas d'emoji, pas d'espaces) pour FormData
                             // Discord rejette les emojis seuls, les espaces, et les chaînes vides avec FormData + fichiers
                             const DEFAULT_CONTENT = 'Shader animation'; // Texte réel minimal garanti
+                            
+                            // IMPORTANT: Si des embeds sont présents, ne PAS ajouter de content
+                            // Discord accepte les embeds seuls avec FormData + fichiers
+                            // Ajouter un content seulement si aucun embed n'est présent
                             
                             // Fonction pour détecter si une chaîne est principalement un emoji
                             const isEmojiOrInvalid = (str) => {
@@ -4766,20 +4768,52 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             };
                             
                             // Déterminer le content à utiliser
-                            if (!options.content || typeof options.content !== 'string') {
-                                payloadJson.content = DEFAULT_CONTENT;
-                                console.log('✅ FormData - content manquant, utilisation du texte par défaut');
+                            // IMPORTANT: Si des embeds sont présents, ne PAS ajouter de content
+                            // Discord accepte les embeds seuls avec FormData + fichiers
+                            // Cela évite l'erreur 50006 "Cannot send an empty message"
+                            
+                            if (embedsJson.length > 0) {
+                                // Des embeds sont présents, ne pas ajouter de content
+                                // Discord accepte les embeds seuls avec FormData + fichiers
+                                console.log('✅ FormData - embeds présents, suppression du content (Discord accepte embeds seuls)');
+                                // Ne pas définir payloadJson.content du tout
                             } else {
-                                const trimmedContent = options.content.trim();
-                                
-                                // Vérifier si le content est valide (non vide, pas seulement emoji/espace)
-                                if (trimmedContent.length === 0 || isEmojiOrInvalid(trimmedContent)) {
+                                // Pas d'embeds, ajouter un content
+                                // IMPORTANT: Avec FormData, Discord peut avoir des problèmes avec les emojis dans le content
+                                // Simplifier le content en remplaçant les emojis par du texte pour éviter les problèmes d'encodage
+                                if (!options.content || typeof options.content !== 'string') {
                                     payloadJson.content = DEFAULT_CONTENT;
-                                    console.log('⚠️ FormData - content invalide (vide, emoji, ou espace), utilisation du texte par défaut');
+                                    console.log('✅ FormData - content manquant, utilisation du texte par défaut');
                                 } else {
-                                    // Content valide, l'utiliser
-                                    payloadJson.content = options.content;
-                                    console.log('✅ FormData - content réel fourni, utilisation');
+                                    const trimmedContent = options.content.trim();
+                                    
+                                    // Vérifier si le content est valide (non vide, pas seulement emoji/espace)
+                                    if (trimmedContent.length === 0 || isEmojiOrInvalid(trimmedContent)) {
+                                        payloadJson.content = DEFAULT_CONTENT;
+                                        console.log('⚠️ FormData - content invalide (vide, emoji, ou espace), utilisation du texte par défaut');
+                                    } else {
+                                        // Content valide, mais simplifier les emojis pour éviter les problèmes d'encodage avec FormData
+                                        // IMPORTANT: Le content contient déjà le texte après les emojis (ex: "📊 Frames: 60")
+                                        // Donc on supprime simplement les emojis au lieu de les remplacer par du texte
+                                        let simplifiedContent = options.content
+                                            .replace(/✅/g, '[OK]')
+                                            .replace(/📊/g, '') // Supprimer l'emoji (le texte "Frames:" suit déjà)
+                                            .replace(/⏱️/g, '') // Supprimer l'emoji (le texte "Duration:" suit déjà)
+                                            .replace(/📐/g, '') // Supprimer l'emoji (le texte "Resolution:" suit déjà)
+                                            .replace(/💾/g, '') // Supprimer l'emoji (le texte "ID:" suit déjà)
+                                            .replace(/❌/g, '[ERROR]')
+                                            .replace(/⚠️/g, '[WARNING]');
+                                        
+                                        // Si après simplification le content est vide ou invalide, utiliser le default
+                                        const simplifiedTrimmed = simplifiedContent.trim();
+                                        if (simplifiedTrimmed.length === 0 || isEmojiOrInvalid(simplifiedTrimmed)) {
+                                            payloadJson.content = DEFAULT_CONTENT;
+                                            console.log('⚠️ FormData - content simplifié invalide, utilisation du texte par défaut');
+                                        } else {
+                                            payloadJson.content = simplifiedContent;
+                                            console.log('✅ FormData - content simplifié (emojis remplacés) pour éviter problèmes d\'encodage');
+                                        }
+                                    }
                                 }
                             }
                             
@@ -4810,9 +4844,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             }
                             
                             // Vérification finale: s'assurer qu'on a au moins content OU embeds
+                            // Si des embeds sont présents, c'est OK de ne pas avoir de content
                             if (!payloadJson.content && (!payloadJson.embeds || payloadJson.embeds.length === 0)) {
                                 payloadJson.content = DEFAULT_CONTENT_FINAL;
                                 console.log('⚠️ FormData - payload complètement vide, ajout content de secours');
+                            } else if (payloadJson.embeds && payloadJson.embeds.length > 0 && payloadJson.content) {
+                                // Si des embeds sont présents, supprimer le content pour éviter l'erreur 50006
+                                console.log('⚠️ FormData - embeds présents, suppression du content pour éviter erreur 50006');
+                                delete payloadJson.content;
                             }
                             
                             // LOGGING CRITIQUE avant l'envoi à Discord API
@@ -4824,17 +4863,26 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             console.log(`  - Payload JSON keys: ${Object.keys(payloadJson).join(', ')}`);
                             
                             // Validation finale stricte
-                            if (!payloadJson.content || payloadJson.content.trim().length === 0) {
-                                console.error('❌ ERREUR CRITIQUE: Content est vide après toutes les vérifications!');
-                                payloadJson.content = DEFAULT_CONTENT_FINAL;
+                            // Si des embeds sont présents, ne pas valider le content (il peut être absent)
+                            if (!payloadJson.embeds || payloadJson.embeds.length === 0) {
+                                if (!payloadJson.content || payloadJson.content.trim().length === 0) {
+                                    console.error('❌ ERREUR CRITIQUE: Content est vide après toutes les vérifications!');
+                                    payloadJson.content = DEFAULT_CONTENT_FINAL;
+                                }
                             }
                             
                             // Stringify le JSON - utiliser JSON.stringify sans replacer pour préserver l'emoji
                             const payloadJsonString = JSON.stringify(payloadJson);
                             
+                            // IMPORTANT: Encoder le JSON en Buffer UTF-8 pour garantir un encodage correct
+                            // Discord peut avoir des problèmes avec l'encodage UTF-8 des emojis dans FormData
+                            const payloadJsonBuffer = Buffer.from(payloadJsonString, 'utf8');
+                            
                             // IMPORTANT: Ajouter payload_json AVANT les fichiers (ordre important pour Discord)
-                            formData.append('payload_json', payloadJsonString, {
-                                contentType: 'application/json'
+                            // Utiliser un Buffer au lieu d'une string pour garantir l'encodage UTF-8 correct
+                            formData.append('payload_json', payloadJsonBuffer, {
+                                contentType: 'application/json; charset=utf-8',
+                                filename: 'payload.json' // Certaines implémentations FormData nécessitent un filename
                             });
                             
                             console.log(`📤 Payload JSON préparé: ${payloadJsonString.substring(0, 200)}...`);
@@ -5072,11 +5120,13 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 payloadJson.content = 'Shader animation';
                                 // Re-stringify le JSON avec le content corrigé
                                 const correctedPayloadJsonString = JSON.stringify(payloadJson);
+                                const correctedPayloadJsonBuffer = Buffer.from(correctedPayloadJsonString, 'utf8');
                                 // Remplacer le payload_json dans FormData
                                 const FormDataModule = require('form-data');
                                 const newFormData = new FormDataModule();
-                                newFormData.append('payload_json', correctedPayloadJsonString, {
-                                    contentType: 'application/json'
+                                newFormData.append('payload_json', correctedPayloadJsonBuffer, {
+                                    contentType: 'application/json; charset=utf-8',
+                                    filename: 'payload.json'
                                 });
                                 // Ré-ajouter les fichiers
                                 for (let i = 0; i < options.files.length; i++) {

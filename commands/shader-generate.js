@@ -73,10 +73,12 @@ module.exports = {
     async execute(interaction, { bot }) {
         try {
             await interaction.deferReply();
-            const shape = interaction.options.getString('shape');
-            const color = interaction.options.getString('color');
-            const animation = interaction.options.getString('animation');
-            const speed = interaction.options.getString('speed') || 'normal';
+            // Normaliser les valeurs en minuscules pour accepter les deux formats
+            // Discord envoie les valeurs des choices en minuscules, mais l'utilisateur peut taper en majuscules
+            const shape = interaction.options.getString('shape')?.toLowerCase();
+            const color = interaction.options.getString('color')?.toLowerCase();
+            const animation = interaction.options.getString('animation')?.toLowerCase();
+            const speed = (interaction.options.getString('speed') || 'normal')?.toLowerCase();
             const size = interaction.options.getInteger('size') || 5;
 
             // Generate GLSL code

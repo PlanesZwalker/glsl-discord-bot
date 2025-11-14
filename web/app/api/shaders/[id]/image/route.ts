@@ -69,9 +69,22 @@ export async function GET(
 
     // Check if image_path is a file (GIF) or a directory (frames)
     const imagePath = shader.image_path
-    const fullPath = path.isAbsolute(imagePath)
-      ? imagePath
-      : path.join(process.cwd(), '..', imagePath)
+    // Handle both absolute and relative paths
+    let fullPath: string
+    if (path.isAbsolute(imagePath)) {
+      fullPath = imagePath
+    } else {
+      // Try relative to project root first, then relative to web directory
+      const projectRoot = path.join(process.cwd(), '..')
+      const relativePath = path.join(projectRoot, imagePath)
+      if (fs.existsSync(relativePath)) {
+        fullPath = relativePath
+      } else {
+        fullPath = path.join(process.cwd(), imagePath)
+      }
+    }
+    
+    console.log(`[Image API] Shader ID: ${params.id}, Image path: ${imagePath}, Full path: ${fullPath}, Exists: ${fs.existsSync(fullPath)}`)
     
     // If it's a file (GIF), serve it directly
     if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
@@ -106,7 +119,14 @@ export async function GET(
       }
     }
 
-    return NextResponse.json({ error: 'File not found' }, { status: 404 })
+    // File not found - return a helpful error message
+    console.error(`[Image API] File not found for shader ${params.id}: ${fullPath}`)
+    return NextResponse.json({ 
+      error: 'File not found',
+      message: `The shader image file does not exist at: ${fullPath}. The shader may need to be recompiled.`,
+      shaderId: params.id,
+      imagePath: imagePath
+    }, { status: 404 })
   } catch (error) {
     console.error('Error serving image:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
