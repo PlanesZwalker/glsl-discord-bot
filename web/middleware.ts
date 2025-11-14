@@ -12,8 +12,7 @@ export default withAuth(
     }
     
     // If user is not authenticated and trying to access dashboard,
-    // redirect to home with callbackUrl (this should not happen due to authorized callback,
-    // but handle it just in case)
+    // redirect to home with callbackUrl
     if (!token && pathname.startsWith('/dashboard')) {
       const callbackUrl = pathname + req.nextUrl.search
       const url = req.nextUrl.clone()
@@ -33,8 +32,12 @@ export default withAuth(
         const pathname = req.nextUrl.pathname
         
         // For dashboard routes, require authentication
+        // Return true to allow the middleware function to handle the redirect
+        // This way we can control the redirect URL with callbackUrl
         if (pathname.startsWith('/dashboard')) {
-          return !!token
+          // Always return true here, let the middleware function handle redirects
+          // This allows us to customize the redirect URL
+          return true
         }
         
         // For all other routes, allow access
