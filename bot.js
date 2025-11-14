@@ -4773,10 +4773,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             // Cela évite l'erreur 50006 "Cannot send an empty message"
                             
                             if (embedsJson.length > 0) {
-                                // Des embeds sont présents, ne pas ajouter de content
-                                // Discord accepte les embeds seuls avec FormData + fichiers
-                                console.log('✅ FormData - embeds présents, suppression du content (Discord accepte embeds seuls)');
-                                // Ne pas définir payloadJson.content du tout
+                                // Des embeds sont présents, mais Discord REQUIERT un content non vide avec FormData + fichiers
+                                // Utiliser un espace minimal pour satisfaire cette exigence
+                                payloadJson.content = ' ';
+                                console.log('✅ FormData - embeds présents, ajout d\'un espace minimal pour content (Discord requiert content avec FormData + fichiers)');
                             } else {
                                 // Pas d'embeds, ajouter un content
                                 // IMPORTANT: Avec FormData, Discord peut avoir des problèmes avec les emojis dans le content
@@ -5193,50 +5193,201 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 throw new Error('Payload Discord invalide: ni content ni embeds présents');
                             }
                             
-                            // LOGGING CRITIQUE juste avant l'appel Discord API
-                            console.log('🚀 APPEL Discord API dans 1 seconde...');
-                            console.log(`  - URL: ${webhookUrl}`);
-                            console.log(`  - Method: PATCH`);
-                            console.log(`  - Headers keys: ${Object.keys(headers).join(', ')}`);
-                            console.log(`  - Content-Type: ${headers['content-type']?.substring(0, 50) || 'auto'}`);
-                            console.log(`  - Payload JSON (preview): ${JSON.stringify(payloadJson).substring(0, 300)}...`);
-                            
-                            try {
-                                const response = await fetch(webhookUrl, {
-                                    method: 'PATCH',
-                                    headers: headers,
-                                    body: formData
-                                });
+                            // 🧪 SYSTÈME DE FALLBACK: Tester plusieurs stratégies pour trouver celle qui fonctionne
+                            // Fonction helper pour construire un FormData avec une stratégie de content spécifique
+                            const buildFormDataWithStrategy = (contentStrategy) => {
+                                const FormDataModule = require('form-data');
+                                const newFormData = new FormDataModule();
                                 
-                                console.log(`📡 Réponse Discord API: ${response.status} ${response.statusText}`);
+                                // Créer un nouveau payload avec la stratégie de content
+                                const strategyPayload = { ...payloadJson };
                                 
-                                if (!response.ok) {
-                                    const errorText = await response.text();
-                                    console.error(`❌ Erreur Discord API: ${response.status} ${response.statusText}`);
-                                    console.error(`❌ Réponse complète: ${errorText}`);
-                                    
-                                    // Si l'erreur est "empty message", vérifier le payload en détail
-                                    if (errorText.includes('empty message') || response.status === 400) {
-                                        console.error(`❌ DIAGNOSTIC ERREUR 50006:`);
-                                        console.error(`  - Payload JSON complet: ${JSON.stringify(payloadJson)}`);
-                                        console.error(`  - Content final: "${payloadJson.content}" (type: ${typeof payloadJson.content}, length: ${payloadJson.content?.length || 0})`);
-                                        console.error(`  - Content trimmed: "${payloadJson.content?.trim()}" (length: ${payloadJson.content?.trim()?.length || 0})`);
-                                        console.error(`  - Content est vide après trim: ${payloadJson.content?.trim()?.length === 0}`);
-                                        console.error(`  - Nombre d'embeds: ${payloadJson.embeds?.length || 0}`);
-                                        console.error(`  - Nombre de fichiers: ${options.files?.length || 0}`);
-                                        console.error(`  - Payload keys: ${Object.keys(payloadJson).join(', ')}`);
-                                        console.error(`  - Payload JSON stringified length: ${JSON.stringify(payloadJson).length}`);
+                                if (contentStrategy === 'original') {
+                                    // Stratégie 1: Utiliser options.content original
+                                    if (options.content && typeof options.content === 'string' && options.content.trim().length > 0) {
+                                        strategyPayload.content = options.content;
+                                    } else {
+                                        strategyPayload.content = 'Shader animation';
                                     }
-                                    
-                                    throw new Error(`Discord API error: ${response.status} - ${errorText.substring(0, 200)}`);
+                                } else if (contentStrategy === 'empty_string') {
+                                    // Stratégie 2: Content comme chaîne vide ""
+                                    strategyPayload.content = '';
+                                } else if (contentStrategy === 'dot') {
+                                    // Stratégie 3: Content minimal "."
+                                    strategyPayload.content = '.';
+                                } else if (contentStrategy === 'text') {
+                                    // Stratégie 4: Texte réel
+                                    strategyPayload.content = 'Shader animation';
+                                } else if (contentStrategy === 'separate_field') {
+                                    // Stratégie 5: Content séparé dans FormData (sans dans payload_json)
+                                    delete strategyPayload.content;
+                                    // On ajoutera content séparément après
+                                } else if (contentStrategy === 'no_content') {
+                                    // Stratégie 6: Pas de content du tout
+                                    delete strategyPayload.content;
                                 }
                                 
-                                const responseData = await response.json().catch(() => ({}));
-                                console.log(`✅ Réponse avec fichiers envoyée avec succès`);
-                            } catch (fetchError) {
-                                console.error(`❌ Erreur lors de l'envoi FormData:`, fetchError.message);
-                                // Ne pas utiliser rest.patch comme fallback car il a le même problème
-                                throw fetchError;
+                                // Ajouter payload_json
+                                const payloadJsonString = JSON.stringify(strategyPayload);
+                                const payloadJsonBuffer = Buffer.from(payloadJsonString, 'utf8');
+                                newFormData.append('payload_json', payloadJsonBuffer, {
+                                    contentType: 'application/json; charset=utf-8',
+                                    filename: 'payload.json'
+                                });
+                                
+                                // Si stratégie "separate_field", ajouter content séparément
+                                if (contentStrategy === 'separate_field') {
+                                    newFormData.append('content', 'Shader animation');
+                                }
+                                
+                                // Ré-ajouter les fichiers
+                                for (let i = 0; i < options.files.length; i++) {
+                                    const file = options.files[i];
+                                    let fileStream = null;
+                                    let fileName = 'file.gif';
+                                    
+                                    if (file.attachment) {
+                                        if (typeof file.attachment === 'string' && fs.existsSync(file.attachment)) {
+                                            fileStream = fs.createReadStream(file.attachment);
+                                            fileName = file.name || path.basename(file.attachment);
+                                        } else if (Buffer.isBuffer(file.attachment)) {
+                                            fileStream = file.attachment;
+                                            fileName = file.name || 'file.gif';
+                                        } else if (file.attachment && typeof file.attachment.read === 'function') {
+                                            fileStream = file.attachment;
+                                            fileName = file.name || 'file.gif';
+                                        } else if (typeof file.attachment === 'object') {
+                                            // Essayer de trouver le fichier dans l'objet
+                                            for (const key of ['path', 'file', 'data', 'buffer', 'stream']) {
+                                                if (file.attachment[key]) {
+                                                    if (typeof file.attachment[key] === 'string' && fs.existsSync(file.attachment[key])) {
+                                                        fileStream = fs.createReadStream(file.attachment[key]);
+                                                        fileName = file.name || path.basename(file.attachment[key]);
+                                                        break;
+                                                    } else if (Buffer.isBuffer(file.attachment[key])) {
+                                                        fileStream = file.attachment[key];
+                                                        fileName = file.name || 'file.gif';
+                                                        break;
+                                                    } else if (file.attachment[key] && typeof file.attachment[key].read === 'function') {
+                                                        fileStream = file.attachment[key];
+                                                        fileName = file.name || 'file.gif';
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (fileStream) {
+                                        const fileOptions = {
+                                            filename: fileName,
+                                            contentType: fileName.endsWith('.gif') ? 'image/gif' : fileName.endsWith('.png') ? 'image/png' : 'application/octet-stream'
+                                        };
+                                        
+                                        if (fileStream.path && fs.existsSync(fileStream.path)) {
+                                            try {
+                                                const stats = fs.statSync(fileStream.path);
+                                                fileOptions.knownLength = stats.size;
+                                            } catch (e) {
+                                                // Ignorer
+                                            }
+                                        }
+                                        
+                                        newFormData.append(`files[${i}]`, fileStream, fileOptions);
+                                    }
+                                }
+                                
+                                return { formData: newFormData, payload: strategyPayload };
+                            };
+                            
+                            // Liste des stratégies à tester dans l'ordre
+                            const strategies = [
+                                { name: 'original', desc: 'Utiliser options.content original' },
+                                { name: 'text', desc: 'Texte réel "Shader animation"' },
+                                { name: 'dot', desc: 'Point minimal "."' },
+                                { name: 'empty_string', desc: 'Chaîne vide ""' },
+                                { name: 'separate_field', desc: 'Content séparé dans FormData' },
+                                { name: 'no_content', desc: 'Pas de content (embeds seuls)' }
+                            ];
+                            
+                            let lastError = null;
+                            let successStrategy = null;
+                            
+                            // Essayer chaque stratégie jusqu'à ce qu'une fonctionne
+                            for (const strategy of strategies) {
+                                try {
+                                    console.log(`🧪 TEST STRATÉGIE "${strategy.name}": ${strategy.desc}`);
+                                    
+                                    const { formData: testFormData, payload: testPayload } = buildFormDataWithStrategy(strategy.name);
+                                    const testHeaders = {
+                                        ...testFormData.getHeaders(),
+                                        'Authorization': `Bot ${discordToken}`
+                                    };
+                                    
+                                    console.log(`  - Content dans payload: ${testPayload.content !== undefined ? `"${testPayload.content}"` : 'undefined'} (type: ${typeof testPayload.content})`);
+                                    console.log(`  - Payload keys: ${Object.keys(testPayload).join(', ')}`);
+                                    
+                                    const response = await fetch(webhookUrl, {
+                                        method: 'PATCH',
+                                        headers: testHeaders,
+                                        body: testFormData
+                                    });
+                                    
+                                    console.log(`  - Réponse: ${response.status} ${response.statusText}`);
+                                    
+                                    if (response.ok) {
+                                        const responseData = await response.json().catch(() => ({}));
+                                        console.log(`✅ ✅ ✅ SUCCÈS avec stratégie "${strategy.name}"! ✅ ✅ ✅`);
+                                        console.log(`✅ Cette stratégie fonctionne: ${strategy.desc}`);
+                                        successStrategy = strategy.name;
+                                        break; // Sortir de la boucle, on a trouvé la bonne stratégie
+                                    } else {
+                                        const errorText = await response.text();
+                                        console.log(`  - ❌ Échec: ${errorText.substring(0, 100)}`);
+                                        
+                                        if (errorText.includes('empty message')) {
+                                            lastError = new Error(`Strategy "${strategy.name}" failed: ${errorText.substring(0, 200)}`);
+                                            continue; // Essayer la stratégie suivante
+                                        } else {
+                                            // Autre erreur (pas empty message), peut-être que cette stratégie est proche
+                                            lastError = new Error(`Strategy "${strategy.name}" failed: ${errorText.substring(0, 200)}`);
+                                            continue;
+                                        }
+                                    }
+                                } catch (strategyError) {
+                                    console.log(`  - ❌ Exception: ${strategyError.message}`);
+                                    lastError = strategyError;
+                                    continue; // Essayer la stratégie suivante
+                                }
+                            }
+                            
+                            // Si aucune stratégie n'a fonctionné, essayer rest.patch comme dernier recours
+                            if (!successStrategy) {
+                                console.log(`🧪 DERNIER RECOURS: Essayer rest.patch de discord.js`);
+                                try {
+                                    // Construire le payload pour rest.patch
+                                    const restPayload = { ...options };
+                                    if (restPayload.embeds && restPayload.embeds.length > 0) {
+                                        // Essayer avec content
+                                        restPayload.content = restPayload.content || 'Shader animation';
+                                    }
+                                    
+                                    await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
+                                        body: restPayload,
+                                        files: options.files
+                                    });
+                                    
+                                    console.log(`✅ ✅ ✅ SUCCÈS avec rest.patch! ✅ ✅ ✅`);
+                                    successStrategy = 'rest.patch';
+                                } catch (restError) {
+                                    console.error(`❌ rest.patch a aussi échoué: ${restError.message}`);
+                                    // Re-throw l'erreur originale ou la dernière erreur
+                                    throw lastError || restError;
+                                }
+                            }
+                            
+                            if (!successStrategy) {
+                                throw lastError || new Error('Toutes les stratégies ont échoué');
                             }
                         } else {
                             // Pas de fichiers, envoi JSON classique
