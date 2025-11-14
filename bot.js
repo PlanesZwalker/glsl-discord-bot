@@ -4740,13 +4740,13 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 payloadJson.components = options.components;
                             }
                             
-                            // CRITIQUE: Avec FormData, Discord nécessite un content non-vide
-                            // Même avec des embeds, il faut un content textuel
-                            // Utiliser Zero-Width Space (\u200B) qui est invisible mais valide
+                            // CRITIQUE: Avec FormData + fichiers, Discord nécessite ABSOLUMENT un content non-vide et non-trimmable
+                            // Discord rejette les espaces, Zero-Width Space, et autres caractères invisibles
+                            // SOLUTION: Utiliser un texte minimal mais visible (emoji ou texte court)
                             if (!options.content || options.content.trim() === '') {
-                                // Si pas de content, utiliser Zero-Width Space (invisible mais valide)
-                                payloadJson.content = '\u200B'; // Zero-Width Space - Discord ne le trim pas
-                                console.log('✅ FormData - ajout Zero-Width Space comme content (invisible mais valide)');
+                                // Utiliser un emoji comme content (visible mais minimal)
+                                payloadJson.content = '🎨'; // Emoji visible - Discord l'accepte
+                                console.log('✅ FormData - ajout emoji comme content (visible mais minimal)');
                             } else {
                                 // Si un content réel est fourni, l'utiliser
                                 payloadJson.content = options.content;
@@ -4767,13 +4767,19 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             // Vérification finale: s'assurer qu'on a au moins content ou embeds
                             if (!payloadJson.content && (!payloadJson.embeds || payloadJson.embeds.length === 0)) {
                                 console.error('❌ Payload JSON vide - ajout forcé de content');
-                                payloadJson.content = 'Shader compilé et prêt !';
+                                payloadJson.content = '🎨'; // Emoji comme fallback
                             }
                             
-                            // Stringify le JSON
-                            const payloadJsonString = JSON.stringify(payloadJson, null, 0);
+                            // IMPORTANT: S'assurer que le content n'est jamais undefined ou null
+                            // Discord rejette même les chaînes vides après trim
+                            if (!payloadJson.content || typeof payloadJson.content !== 'string' || payloadJson.content.trim().length === 0) {
+                                payloadJson.content = '🎨'; // Emoji visible comme fallback absolu
+                            }
                             
-                            // IMPORTANT: Ajouter payload_json AVANT les fichiers
+                            // Stringify le JSON - utiliser JSON.stringify sans replacer pour préserver l'emoji
+                            const payloadJsonString = JSON.stringify(payloadJson);
+                            
+                            // IMPORTANT: Ajouter payload_json AVANT les fichiers (ordre important pour Discord)
                             formData.append('payload_json', payloadJsonString, {
                                 contentType: 'application/json'
                             });
@@ -4782,6 +4788,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             console.log(`📋 Payload contient embeds: ${!!payloadJson.embeds && payloadJson.embeds.length > 0}`);
                             console.log(`📋 Payload contient content: ${!!payloadJson.content} (length: ${payloadJson.content?.length || 0})`);
                             console.log(`📋 Content value: ${JSON.stringify(payloadJson.content)}`);
+                            console.log(`📋 Content type: ${typeof payloadJson.content}`);
                             
                             // Ajouter les fichiers au FormData
                             for (let i = 0; i < options.files.length; i++) {
@@ -5027,9 +5034,91 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                     },
                     
                     async followUp(options) {
-                        await rest.post(Routes.webhook(applicationId, interactionToken), {
-                            body: options
-                        });
+                        // Si des fichiers sont présents, utiliser FormData
+                        if (options.files && options.files.length > 0) {
+                            const FormData = require('form-data');
+                            const formData = new FormData();
+                            
+                            // Préparer le payload JSON
+                            const embedsJson = options.embeds ? options.embeds.map(embed => {
+                                if (embed && typeof embed.toJSON === 'function') {
+                                    return embed.toJSON();
+                                }
+                                return embed;
+                            }).filter(embed => embed !== null && embed !== undefined) : [];
+                            
+                            const payloadJson = {};
+                            
+                            if (embedsJson.length > 0) {
+                                payloadJson.embeds = embedsJson;
+                            }
+                            
+                            if (options.components) {
+                                payloadJson.components = options.components;
+                            }
+                            
+                            // Avec FormData + fichiers, utiliser un emoji comme content
+                            if (!options.content || options.content.trim() === '') {
+                                payloadJson.content = '🎨';
+                            } else {
+                                payloadJson.content = options.content;
+                            }
+                            
+                            const payloadJsonString = JSON.stringify(payloadJson, null, 0);
+                            
+                            // Ajouter payload_json
+                            formData.append('payload_json', payloadJsonString, {
+                                contentType: 'application/json'
+                            });
+                            
+                            // Ajouter les fichiers
+                            for (let i = 0; i < options.files.length; i++) {
+                                const file = options.files[i];
+                                let fileStream = null;
+                                let fileName = 'file.gif';
+                                
+                                if (file.attachment) {
+                                    if (typeof file.attachment === 'string' && fs.existsSync(file.attachment)) {
+                                        fileStream = fs.createReadStream(file.attachment);
+                                        fileName = file.name || path.basename(file.attachment);
+                                    } else if (Buffer.isBuffer(file.attachment)) {
+                                        fileStream = file.attachment;
+                                        fileName = file.name || 'file.gif';
+                                    }
+                                }
+                                
+                                if (fileStream) {
+                                    formData.append(`files[${i}]`, fileStream, {
+                                        filename: fileName,
+                                        contentType: fileName.endsWith('.gif') ? 'image/gif' : 'image/png'
+                                    });
+                                }
+                            }
+                            
+                            const webhookUrl = `https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}`;
+                            const discordToken = process.env.DISCORD_TOKEN;
+                            
+                            const response = await fetch(webhookUrl, {
+                                method: 'POST',
+                                headers: {
+                                    ...formData.getHeaders(),
+                                    'Authorization': `Bot ${discordToken}`
+                                },
+                                body: formData
+                            });
+                            
+                            if (!response.ok) {
+                                const errorText = await response.text();
+                                throw new Error(`Discord API error: ${response.status} - ${errorText.substring(0, 200)}`);
+                            }
+                            
+                            return await response.json();
+                        } else {
+                            // Pas de fichiers, envoi JSON classique
+                            await rest.post(Routes.webhook(applicationId, interactionToken), {
+                                body: options
+                            });
+                        }
                     },
                     
                     isChatInputCommand: () => true,
