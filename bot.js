@@ -4784,14 +4784,36 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             
                             // Liste de TOUTES les stratégies à tester
                             const strategies = [
-                                // STRATÉGIE 1: Envoyer le GIF avec un embed minimal (seulement l'image) - PRIORITÉ
-                                // Discord nécessite un embed pour afficher correctement les images/GIFs
+                                // STRATÉGIE 1: Utiliser directement les AttachmentBuilder originaux avec embed minimal - PRIORITÉ
+                                // C'est le format que discord.js gère nativement et qui fonctionne le mieux
                                 {
-                                    name: 'rest.patch_minimal_embed',
-                                    desc: 'rest.patch avec embed minimal (seulement l\'image, pas de champs)',
+                                    name: 'rest.patch_AttachmentBuilder_minimal_embed',
+                                    desc: 'rest.patch avec AttachmentBuilder originaux + embed minimal',
                                     test: async () => {
                                         // Créer un embed minimal avec seulement l'image
                                         // S'assurer que le nom du fichier correspond exactement
+                                        const fileName = options.files[0]?.name || 'animation.gif';
+                                        const minimalEmbed = [{
+                                            image: { url: `attachment://${fileName}` },
+                                            color: embedsJson[0]?.color || 0x9B59B6
+                                        }];
+                                        const restPayload = {
+                                            embeds: minimalEmbed
+                                        };
+                                        
+                                        // Utiliser directement les AttachmentBuilder originaux
+                                        // discord.js sait comment les gérer correctement
+                                        await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
+                                            body: restPayload,
+                                            files: options.files
+                                        });
+                                    }
+                                },
+                                // STRATÉGIE 2: Lire les fichiers en Buffer et les passer avec embed minimal
+                                {
+                                    name: 'rest.patch_buffer_minimal_embed',
+                                    desc: 'rest.patch avec fichiers lus en Buffer + embed minimal',
+                                    test: async () => {
                                         const fileName = filePaths[0]?.name || 'animation.gif';
                                         const minimalEmbed = [{
                                             image: { url: `attachment://${fileName}` },
@@ -4800,35 +4822,50 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                         const restPayload = {
                                             embeds: minimalEmbed
                                         };
-                                        // Utiliser filePaths extraits - s'assurer que le format est correct
-                                        const fileAttachments = filePaths.map(fp => {
-                                            // Si c'est un chemin, utiliser directement le chemin
-                                            if (fp.path) {
+                                        
+                                        // Lire les fichiers en Buffer pour s'assurer qu'ils sont correctement transmis
+                                        const fileAttachments = await Promise.all(filePaths.map(async (fp) => {
+                                            if (fp.path && fs.existsSync(fp.path)) {
+                                                const buffer = fs.readFileSync(fp.path);
                                                 return {
-                                                    attachment: fp.path,
+                                                    attachment: buffer,
                                                     name: fp.name
                                                 };
                                             }
-                                            // Si c'est un buffer, utiliser le buffer
                                             if (fp.buffer) {
                                                 return {
                                                     attachment: fp.buffer,
                                                     name: fp.name
                                                 };
                                             }
-                                            // Si c'est un stream, utiliser le stream
-                                            if (fp.stream) {
-                                                return {
-                                                    attachment: fp.stream,
-                                                    name: fp.name
-                                                };
-                                            }
                                             return null;
-                                        }).filter(f => f !== null);
+                                        }));
+                                        
+                                        const validFiles = fileAttachments.filter(f => f !== null);
+                                        if (validFiles.length === 0) {
+                                            throw new Error('Aucun fichier valide à envoyer');
+                                        }
                                         
                                         await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
                                             body: restPayload,
-                                            files: fileAttachments
+                                            files: validFiles
+                                        });
+                                    }
+                                },
+                                // STRATÉGIE 3: Utiliser directement les AttachmentBuilder originaux (sans modification)
+                                {
+                                    name: 'rest.patch_AttachmentBuilder_full_embed',
+                                    desc: 'rest.patch avec AttachmentBuilder originaux + embed complet',
+                                    test: async () => {
+                                        const restPayload = {
+                                            embeds: embedsJson,
+                                            components: options.components
+                                        };
+                                        
+                                        // Utiliser directement les AttachmentBuilder originaux
+                                        await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
+                                            body: restPayload,
+                                            files: options.files
                                         });
                                     }
                                 },
@@ -4866,22 +4903,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                         await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
                                             body: restPayload,
                                             files: fileAttachments
-                                        });
-                                    }
-                                },
-                                // STRATÉGIES rest.patch
-                                {
-                                    name: 'rest.patch_with_AttachmentBuilder',
-                                    desc: 'rest.patch avec AttachmentBuilder originaux',
-                                    test: async () => {
-                                        const restPayload = {
-                                            embeds: embedsJson,
-                                            components: options.components
-                                            // Ne pas inclure content si on a des embeds - Discord affichera l'embed avec l'image
-                                        };
-                                        await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
-                                            body: restPayload,
-                                            files: options.files
                                         });
                                     }
                                 },
