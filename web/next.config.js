@@ -64,13 +64,12 @@ const nextConfig = {
   webpack: (config, { isServer, dev }) => {
     // Improve chunk loading reliability
     if (!isServer) {
+      // Simplifier la configuration splitChunks pour éviter les problèmes de chunks
       config.optimization = {
         ...config.optimization,
         splitChunks: {
-          ...config.optimization.splitChunks,
           chunks: 'all',
           cacheGroups: {
-            ...config.optimization.splitChunks?.cacheGroups,
             default: {
               minChunks: 2,
               priority: -20,
@@ -86,12 +85,13 @@ const nextConfig = {
         },
       }
       
-      // Améliorer la gestion des erreurs de chunks
+      // En production, utiliser des noms de chunks stables avec contenthash
+      // Le contenthash garantit que les chunks sont mis en cache correctement
       if (!dev) {
-        // En production, utiliser des noms de chunks stables
         config.output = {
           ...config.output,
-          chunkFilename: 'static/chunks/[name]-[contenthash].js',
+          // Utiliser contenthash pour le cache mais garder la structure stable
+          chunkFilename: 'static/chunks/[name]-[contenthash:8].js',
         }
       }
     }
@@ -110,6 +110,10 @@ const nextConfig = {
           {
             key: 'X-Content-Type-Options',
             value: 'nosniff',
+          },
+          {
+            key: 'Cross-Origin-Resource-Policy',
+            value: 'cross-origin',
           },
         ],
       },

@@ -53,6 +53,39 @@ export function ChunkErrorHandler() {
       })
     }
 
+    // Intercepter les erreurs de chargement de scripts
+    const handleScriptError = (event: ErrorEvent) => {
+      const source = event.filename || event.target?.src || ''
+      const message = event.message || ''
+      
+      // Détecter les erreurs de chunks Next.js
+      if (source.includes('_next/static/chunks') || source.includes('_next/static/chunks/app')) {
+        const chunkUrl = source
+        console.error(`❌ Chunk loading failed: ${chunkUrl}`, message)
+        
+        // Vérifier si on a déjà tenté de retry ce chunk
+        const attempts = retryAttempts.get(chunkUrl) || 0
+        if (attempts < MAX_RETRIES) {
+          retryAttempts.set(chunkUrl, attempts + 1)
+          retryChunk(chunkUrl, attempts + 1).catch(() => {
+            // Si tous les retries échouent, recharger la page
+            console.error(`❌ All retries failed for chunk: ${chunkUrl}, reloading page`)
+            setTimeout(() => {
+              window.location.reload()
+            }, 2000)
+          })
+        } else {
+          // Tous les retries ont échoué, recharger la page
+          console.error(`❌ Max retries reached for chunk: ${chunkUrl}, reloading page`)
+          setTimeout(() => {
+            window.location.reload()
+          }, 2000)
+        }
+        return true
+      }
+      return false
+    }
+    
     // Intercepter les erreurs de chunks Next.js
     const handleChunkError = (error: any) => {
       const errorMessage = error?.message || String(error)
@@ -78,6 +111,7 @@ export function ChunkErrorHandler() {
         errorMessage.includes('chunk') ||
         errorMessage.includes('ChunkLoadError') ||
         errorMessage.includes('Loading chunk') ||
+        errorMessage.includes('Loading failed for the <script>') ||
         errorMessage.includes('Failed to fetch') ||
         errorMessage.includes('Failed to fetch RSC payload') ||
         errorMessage.includes('NetworkError') ||
@@ -93,14 +127,26 @@ export function ChunkErrorHandler() {
         // Extraire l'URL du chunk si possible
         let chunkUrl: string | null = null
         
-        // Chercher l'URL dans le message d'erreur
-        const urlMatch = errorMessage.match(/https?:\/\/[^\s)]+/)
+        // Chercher l'URL dans le message d'erreur (format: "Loading failed for the <script> with source "URL"")
+        const urlMatch = errorMessage.match(/["'](https?:\/\/[^"']+)["']/) || errorMessage.match(/(https?:\/\/[^\s)]+)/)
         if (urlMatch) {
-          chunkUrl = urlMatch[0]
+          chunkUrl = urlMatch[1] || urlMatch[0]
         } else if (errorStack) {
-          const stackUrlMatch = errorStack.match(/https?:\/\/[^\s)]+/)
+          const stackUrlMatch = errorStack.match(/["'](https?:\/\/[^"']+)["']/) || errorStack.match(/(https?:\/\/[^\s)]+)/)
           if (stackUrlMatch) {
-            chunkUrl = stackUrlMatch[0]
+            chunkUrl = stackUrlMatch[1] || stackUrlMatch[0]
+          }
+        }
+        
+        // Si on n'a toujours pas d'URL, chercher dans les propriétés de l'erreur
+        if (!chunkUrl && error && typeof error === 'object') {
+          const errorObj = error as any
+          if (errorObj.filename) {
+            chunkUrl = errorObj.filename
+          } else if (errorObj.source) {
+            chunkUrl = errorObj.source
+          } else if (errorObj.url) {
+            chunkUrl = errorObj.url
           }
         }
 
@@ -135,6 +181,11 @@ export function ChunkErrorHandler() {
 
     // Intercepter les erreurs globales
     const errorHandler = (event: ErrorEvent) => {
+      // D'abord, essayer de gérer les erreurs de scripts spécifiquement
+      if (handleScriptError(event)) {
+        return // L'erreur a été gérée
+      }
+      // Sinon, utiliser le gestionnaire générique
       handleChunkError(event.error || event.message)
     }
 
