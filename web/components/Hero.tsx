@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSession, signIn } from 'next-auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useLocale } from '@/hooks/useLocale'
 import { getTranslations } from '@/lib/i18n'
 
@@ -11,7 +11,6 @@ export function Hero() {
   const { locale } = useLocale()
   const { data: session, status } = useSession()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const t = getTranslations(locale)
   const [showCommands, setShowCommands] = useState(false)
   const [hasRedirected, setHasRedirected] = useState(false)
@@ -20,7 +19,11 @@ export function Hero() {
     // Éviter les redirections multiples
     if (hasRedirected) return
     
-    const callbackUrl = searchParams.get('callbackUrl')
+    // Lire les paramètres de l'URL côté client uniquement
+    if (typeof window === 'undefined') return
+    
+    const params = new URLSearchParams(window.location.search)
+    const callbackUrl = params.get('callbackUrl')
     
     console.log('Hero - Status:', status, 'CallbackUrl:', callbackUrl)
     
@@ -30,7 +33,7 @@ export function Hero() {
       setHasRedirected(true)
       router.push(callbackUrl)
     }
-  }, [status, searchParams, router, hasRedirected])
+  }, [status, router, hasRedirected])
   
   const handleDashboardClick = async () => {
     if (status === 'authenticated') {
