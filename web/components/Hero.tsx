@@ -22,18 +22,34 @@ export function Hero() {
     // Lire les paramètres de l'URL côté client uniquement
     if (typeof window === 'undefined') return
     
+    // Attendre que le statut soit déterminé
+    if (status === 'loading') return
+    
     const params = new URLSearchParams(window.location.search)
     const callbackUrl = params.get('callbackUrl')
     
-    console.log('Hero - Status:', status, 'CallbackUrl:', callbackUrl)
+    console.log('Hero - Status:', status, 'Session:', !!session, 'CallbackUrl:', callbackUrl, 'HasRedirected:', hasRedirected)
     
     // Si authentifié ET callbackUrl présent ET pas encore redirigé
-    if (status === 'authenticated' && callbackUrl && !hasRedirected) {
+    if (status === 'authenticated' && session && callbackUrl && !hasRedirected) {
       console.log('Hero - Redirection vers:', callbackUrl)
       setHasRedirected(true)
-      router.push(callbackUrl)
+      
+      // Décoder l'URL si nécessaire
+      const decodedUrl = decodeURIComponent(callbackUrl)
+      
+      // Utiliser replace pour éviter d'ajouter à l'historique
+      router.replace(decodedUrl)
+      
+      // Fallback avec window.location si router ne fonctionne pas
+      setTimeout(() => {
+        if (window.location.pathname === '/' && window.location.search.includes('callbackUrl')) {
+          console.log('Hero - Fallback: redirection directe avec window.location')
+          window.location.href = decodedUrl
+        }
+      }, 100)
     }
-  }, [status, router, hasRedirected])
+  }, [status, session, router, hasRedirected])
   
   const handleDashboardClick = async () => {
     if (status === 'authenticated') {
