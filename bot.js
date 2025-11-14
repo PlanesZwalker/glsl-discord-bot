@@ -4726,22 +4726,80 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                     content: options.content || 'Shader animation' // Toujours inclure un content
                                 };
                                 
+                                // Convertir les AttachmentBuilder en chemins de fichiers pour rest.patch
+                                // discord.js REST peut avoir des problèmes avec AttachmentBuilder pour les webhooks
+                                const fileAttachments = [];
+                                if (options.files && options.files.length > 0) {
+                                    for (const file of options.files) {
+                                        // AttachmentBuilder a une propriété .attachment qui peut être un chemin
+                                        if (file.attachment) {
+                                            if (typeof file.attachment === 'string') {
+                                                // C'est un chemin de fichier
+                                                fileAttachments.push({
+                                                    attachment: file.attachment,
+                                                    name: file.name || path.basename(file.attachment)
+                                                });
+                                            } else if (Buffer.isBuffer(file.attachment)) {
+                                                // C'est un Buffer
+                                                fileAttachments.push({
+                                                    attachment: file.attachment,
+                                                    name: file.name || 'file.gif'
+                                                });
+                                            } else if (file.attachment && typeof file.attachment.read === 'function') {
+                                                // C'est un Stream
+                                                fileAttachments.push({
+                                                    attachment: file.attachment,
+                                                    name: file.name || 'file.gif'
+                                                });
+                                            } else if (typeof file.attachment === 'object') {
+                                                // Essayer de trouver le chemin dans l'objet
+                                                const attachmentObj = file.attachment;
+                                                for (const key of ['path', 'file', 'data', 'buffer', 'stream']) {
+                                                    if (attachmentObj[key]) {
+                                                        if (typeof attachmentObj[key] === 'string' && fs.existsSync(attachmentObj[key])) {
+                                                            fileAttachments.push({
+                                                                attachment: attachmentObj[key],
+                                                                name: file.name || path.basename(attachmentObj[key])
+                                                            });
+                                                            break;
+                                                        } else if (Buffer.isBuffer(attachmentObj[key])) {
+                                                            fileAttachments.push({
+                                                                attachment: attachmentObj[key],
+                                                                name: file.name || 'file.gif'
+                                                            });
+                                                            break;
+                                                        } else if (attachmentObj[key] && typeof attachmentObj[key].read === 'function') {
+                                                            fileAttachments.push({
+                                                                attachment: attachmentObj[key],
+                                                                name: file.name || 'file.gif'
+                                                            });
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
                                 console.log(`🔍 rest.patch payload:`, {
                                     hasEmbeds: restPayload.embeds.length > 0,
                                     hasContent: !!restPayload.content,
                                     contentLength: restPayload.content?.length || 0,
-                                    filesCount: options.files?.length || 0
+                                    filesCount: fileAttachments.length,
+                                    fileNames: fileAttachments.map(f => f.name)
                                 });
                                 
                                 await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
                                     body: restPayload,
-                                    files: options.files || []
+                                    files: fileAttachments.length > 0 ? fileAttachments : options.files || []
                                 });
                                 
                                 console.log(`✅ Message envoyé avec succès via rest.patch`);
                                 return; // Succès, sortir de la fonction
                             } catch (restError) {
                                 console.error(`❌ rest.patch a échoué: ${restError.message}`);
+                                console.error(`❌ rest.patch error stack:`, restError.stack);
                                 // Si rest.patch échoue, essayer les stratégies FormData manuelles
                                 console.log(`🔄 Fallback vers FormData manuel...`);
                             }
