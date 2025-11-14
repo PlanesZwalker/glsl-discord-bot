@@ -4913,13 +4913,16 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 payloadJson.components = options.components;
                             }
                             
-                            // CRITIQUE: Discord avec FormData est très strict
-                            // Solution: Si on a des embeds, NE PAS envoyer de content (Discord accepte embeds seuls)
-                            // Si pas d'embeds, utiliser un content descriptif
+                            // CRITIQUE: Discord avec FormData et editReply est TRÈS strict
+                            // Même avec des embeds valides, Discord peut rejeter si pas de content
+                            // Solution: Toujours inclure un content minimal (même avec embeds) pour FormData
                             if (payloadJson.embeds && payloadJson.embeds.length > 0) {
-                                // Supprimer le content - Discord accepte embeds sans content avec FormData
-                                delete payloadJson.content;
-                                console.log('✅ Embeds présents - suppression du content (Discord accepte embeds seuls)');
+                                // Avec FormData, Discord nécessite un content même avec des embeds
+                                // Utiliser un content minimal mais non vide
+                                if (!payloadJson.content || payloadJson.content.trim() === '' || payloadJson.content.trim().length <= 2) {
+                                    payloadJson.content = '\u200b'; // Zero-width space (caractère invisible mais non vide)
+                                    console.log('✅ Embeds présents - ajout content minimal (zero-width space) pour FormData');
+                                }
                             } else if (!payloadJson.content || payloadJson.content.trim() === '' || payloadJson.content.trim().length <= 2) {
                                 // Pas d'embeds et content invalide - utiliser un content descriptif
                                 payloadJson.content = 'Shader compilé et prêt !';
@@ -4959,11 +4962,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             // Vérification finale avant l'envoi
                             const finalPayloadObj = JSON.parse(payloadJsonString);
                             
-                            // Si on a des embeds, on ne devrait PAS avoir de content
+                            // Avec FormData, Discord nécessite un content même avec des embeds
+                            // S'assurer qu'on a toujours un content (même minimal) si on a des embeds
                             if (finalPayloadObj.embeds && finalPayloadObj.embeds.length > 0) {
-                                if (finalPayloadObj.content) {
-                                    console.log('⚠️ Correction finale: suppression du content car embeds présents');
-                                    delete finalPayloadObj.content;
+                                if (!finalPayloadObj.content || finalPayloadObj.content.trim() === '' || finalPayloadObj.content.trim().length <= 2) {
+                                    console.log('⚠️ Correction finale: ajout content minimal (zero-width space) car embeds présents');
+                                    finalPayloadObj.content = '\u200b'; // Zero-width space
                                     payloadJsonString = JSON.stringify(finalPayloadObj, null, 0);
                                 }
                             } else if (!finalPayloadObj.content || finalPayloadObj.content.trim() === '' || finalPayloadObj.content.trim().length <= 2) {
