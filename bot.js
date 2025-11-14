@@ -5058,6 +5058,96 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 console.log(`  - Fichier ${i}: ${file.name || 'unnamed'} (path: ${filePath}, exists: ${fileExists}, size: ${fileSize} bytes)`);
                             }
                             
+                            // ✅ VÉRIFICATION FINALE ABSOLUE avant l'envoi à Discord
+                            // Cette vérification est critique pour éviter l'erreur 50006
+                            const finalContent = payloadJson.content;
+                            const finalContentTrimmed = finalContent?.trim() || '';
+                            
+                            // Vérifier que le content est valide
+                            if (!finalContent || typeof finalContent !== 'string' || finalContentTrimmed.length === 0) {
+                                console.error('❌ ERREUR CRITIQUE: Content est vide/invalide juste avant l\'envoi!');
+                                console.error(`  - Content original: ${JSON.stringify(finalContent)}`);
+                                console.error(`  - Content type: ${typeof finalContent}`);
+                                console.error(`  - Content trimmed length: ${finalContentTrimmed.length}`);
+                                payloadJson.content = 'Shader animation';
+                                // Re-stringify le JSON avec le content corrigé
+                                const correctedPayloadJsonString = JSON.stringify(payloadJson);
+                                // Remplacer le payload_json dans FormData
+                                const FormDataModule = require('form-data');
+                                const newFormData = new FormDataModule();
+                                newFormData.append('payload_json', correctedPayloadJsonString, {
+                                    contentType: 'application/json'
+                                });
+                                // Ré-ajouter les fichiers
+                                for (let i = 0; i < options.files.length; i++) {
+                                    const file = options.files[i];
+                                    let fileStream = null;
+                                    let fileName = 'file.gif';
+                                    
+                                    if (file.attachment) {
+                                        if (typeof file.attachment === 'string' && fs.existsSync(file.attachment)) {
+                                            fileStream = fs.createReadStream(file.attachment);
+                                            fileName = file.name || path.basename(file.attachment);
+                                        } else if (Buffer.isBuffer(file.attachment)) {
+                                            fileStream = file.attachment;
+                                            fileName = file.name || 'file.gif';
+                                        }
+                                    }
+                                    
+                                    if (fileStream) {
+                                        newFormData.append(`files[${i}]`, fileStream, {
+                                            filename: fileName,
+                                            contentType: fileName.endsWith('.gif') ? 'image/gif' : 'image/png'
+                                        });
+                                    }
+                                }
+                                // Remplacer formData
+                                formData = newFormData;
+                                // Mettre à jour headers
+                                headers = {
+                                    ...formData.getHeaders(),
+                                    'Authorization': `Bot ${process.env.DISCORD_TOKEN}`
+                                };
+                                console.log('✅ Content corrigé, FormData reconstruit');
+                            }
+                            
+                            // Vérifier que les fichiers sont valides (taille > 0, existe)
+                            for (let i = 0; i < options.files.length; i++) {
+                                const file = options.files[i];
+                                if (typeof file.attachment === 'string' && fs.existsSync(file.attachment)) {
+                                    try {
+                                        const stats = fs.statSync(file.attachment);
+                                        if (stats.size === 0) {
+                                            console.error(`❌ ERREUR: Fichier ${i} (${file.name}) a une taille de 0 bytes!`);
+                                            throw new Error(`Fichier ${file.name} est vide (0 bytes)`);
+                                        }
+                                        if (stats.size > 25 * 1024 * 1024) { // 25 MB limite Discord
+                                            console.error(`❌ ERREUR: Fichier ${i} (${file.name}) dépasse la limite de 25 MB!`);
+                                            throw new Error(`Fichier ${file.name} est trop grand (${stats.size} bytes)`);
+                                        }
+                                    } catch (e) {
+                                        if (e.message && (e.message.includes('vide') || e.message.includes('trop grand'))) {
+                                            throw e;
+                                        }
+                                        // Ignorer les autres erreurs de stat
+                                    }
+                                }
+                            }
+                            
+                            // Vérifier que nous avons au moins content OU embeds
+                            if (!payloadJson.content && (!payloadJson.embeds || payloadJson.embeds.length === 0)) {
+                                console.error('❌ ERREUR CRITIQUE: Ni content ni embeds présents!');
+                                throw new Error('Payload Discord invalide: ni content ni embeds présents');
+                            }
+                            
+                            // LOGGING CRITIQUE juste avant l'appel Discord API
+                            console.log('🚀 APPEL Discord API dans 1 seconde...');
+                            console.log(`  - URL: ${webhookUrl}`);
+                            console.log(`  - Method: PATCH`);
+                            console.log(`  - Headers keys: ${Object.keys(headers).join(', ')}`);
+                            console.log(`  - Content-Type: ${headers['content-type']?.substring(0, 50) || 'auto'}`);
+                            console.log(`  - Payload JSON (preview): ${JSON.stringify(payloadJson).substring(0, 300)}...`);
+                            
                             try {
                                 const response = await fetch(webhookUrl, {
                                     method: 'PATCH',
@@ -5065,16 +5155,24 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                     body: formData
                                 });
                                 
+                                console.log(`📡 Réponse Discord API: ${response.status} ${response.statusText}`);
+                                
                                 if (!response.ok) {
                                     const errorText = await response.text();
                                     console.error(`❌ Erreur Discord API: ${response.status} ${response.statusText}`);
-                                    console.error(`❌ Réponse: ${errorText.substring(0, 500)}`);
+                                    console.error(`❌ Réponse complète: ${errorText}`);
                                     
-                                    // Si l'erreur est "empty message", vérifier le payload
+                                    // Si l'erreur est "empty message", vérifier le payload en détail
                                     if (errorText.includes('empty message') || response.status === 400) {
-                                        console.error(`❌ Payload JSON envoyé: ${payloadJsonString}`);
-                                        console.error(`❌ Nombre d'embeds: ${payloadJson.embeds?.length || 0}`);
-                                        console.error(`❌ Content présent: ${!!payloadJson.content}`);
+                                        console.error(`❌ DIAGNOSTIC ERREUR 50006:`);
+                                        console.error(`  - Payload JSON complet: ${JSON.stringify(payloadJson)}`);
+                                        console.error(`  - Content final: "${payloadJson.content}" (type: ${typeof payloadJson.content}, length: ${payloadJson.content?.length || 0})`);
+                                        console.error(`  - Content trimmed: "${payloadJson.content?.trim()}" (length: ${payloadJson.content?.trim()?.length || 0})`);
+                                        console.error(`  - Content est vide après trim: ${payloadJson.content?.trim()?.length === 0}`);
+                                        console.error(`  - Nombre d'embeds: ${payloadJson.embeds?.length || 0}`);
+                                        console.error(`  - Nombre de fichiers: ${options.files?.length || 0}`);
+                                        console.error(`  - Payload keys: ${Object.keys(payloadJson).join(', ')}`);
+                                        console.error(`  - Payload JSON stringified length: ${JSON.stringify(payloadJson).length}`);
                                     }
                                     
                                     throw new Error(`Discord API error: ${response.status} - ${errorText.substring(0, 200)}`);
