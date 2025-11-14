@@ -4708,802 +4708,522 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                     
                     // Méthodes pour répondre via l'API REST
                     async editReply(options) {
-                        // Si des fichiers sont présents, utiliser rest.patch directement
-                        // discord.js REST gère automatiquement FormData et les fichiers
+                        // Si des fichiers sont présents, tester TOUTES les stratégies possibles
                         if (options.files && options.files.length > 0) {
-                            console.log(`📎 Envoi de ${options.files.length} fichier(s) via discord.js REST`);
+                            console.log(`📎 Envoi de ${options.files.length} fichier(s) - Test de toutes les stratégies`);
                             
-                            // Utiliser directement rest.patch qui gère FormData automatiquement
-                            try {
-                                const restPayload = {
-                                    embeds: options.embeds ? options.embeds.map(embed => {
-                                        if (embed && typeof embed.toJSON === 'function') {
-                                            return embed.toJSON();
-                                        }
-                                        return embed;
-                                    }).filter(embed => embed !== null && embed !== undefined) : [],
-                                    components: options.components,
-                                    content: options.content || 'Shader animation' // Toujours inclure un content
-                                };
-                                
-                                // Convertir les AttachmentBuilder en chemins de fichiers pour rest.patch
-                                // discord.js REST peut avoir des problèmes avec AttachmentBuilder pour les webhooks
-                                const fileAttachments = [];
-                                if (options.files && options.files.length > 0) {
-                                    for (const file of options.files) {
-                                        // AttachmentBuilder a une propriété .attachment qui peut être un chemin
-                                        if (file.attachment) {
-                                            if (typeof file.attachment === 'string') {
-                                                // C'est un chemin de fichier
-                                                fileAttachments.push({
-                                                    attachment: file.attachment,
-                                                    name: file.name || path.basename(file.attachment)
-                                                });
-                                            } else if (Buffer.isBuffer(file.attachment)) {
-                                                // C'est un Buffer
-                                                fileAttachments.push({
-                                                    attachment: file.attachment,
-                                                    name: file.name || 'file.gif'
-                                                });
-                                            } else if (file.attachment && typeof file.attachment.read === 'function') {
-                                                // C'est un Stream
-                                                fileAttachments.push({
-                                                    attachment: file.attachment,
-                                                    name: file.name || 'file.gif'
-                                                });
-                                            } else if (typeof file.attachment === 'object') {
-                                                // Essayer de trouver le chemin dans l'objet
-                                                const attachmentObj = file.attachment;
-                                                for (const key of ['path', 'file', 'data', 'buffer', 'stream']) {
-                                                    if (attachmentObj[key]) {
-                                                        if (typeof attachmentObj[key] === 'string' && fs.existsSync(attachmentObj[key])) {
-                                                            fileAttachments.push({
-                                                                attachment: attachmentObj[key],
-                                                                name: file.name || path.basename(attachmentObj[key])
-                                                            });
-                                                            break;
-                                                        } else if (Buffer.isBuffer(attachmentObj[key])) {
-                                                            fileAttachments.push({
-                                                                attachment: attachmentObj[key],
-                                                                name: file.name || 'file.gif'
-                                                            });
-                                                            break;
-                                                        } else if (attachmentObj[key] && typeof attachmentObj[key].read === 'function') {
-                                                            fileAttachments.push({
-                                                                attachment: attachmentObj[key],
-                                                                name: file.name || 'file.gif'
-                                                            });
-                                                            break;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                console.log(`🔍 rest.patch payload:`, {
-                                    hasEmbeds: restPayload.embeds.length > 0,
-                                    hasContent: !!restPayload.content,
-                                    contentLength: restPayload.content?.length || 0,
-                                    filesCount: fileAttachments.length,
-                                    fileNames: fileAttachments.map(f => f.name)
-                                });
-                                
-                                await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
-                                    body: restPayload,
-                                    files: fileAttachments.length > 0 ? fileAttachments : options.files || []
-                                });
-                                
-                                console.log(`✅ Message envoyé avec succès via rest.patch`);
-                                return; // Succès, sortir de la fonction
-                            } catch (restError) {
-                                console.error(`❌ rest.patch a échoué: ${restError.message}`);
-                                console.error(`❌ rest.patch error stack:`, restError.stack);
-                                // Si rest.patch échoue, essayer les stratégies FormData manuelles
-                                console.log(`🔄 Fallback vers FormData manuel...`);
-                            }
-                            
-                            // FALLBACK: Si rest.patch échoue, utiliser FormData manuel avec stratégies
-                            const FormData = require('form-data');
-                            let formData = new FormData();
-                            
-                            console.log(`📎 Envoi de ${options.files.length} fichier(s) via FormData manuel`);
-                            
-                            // IMPORTANT: Avec FormData + fichiers + embeds, Discord nécessite un content non-vide
-                            // Discord trim les espaces normaux, donc content: " " devient "" = message vide = erreur
-                            // SOLUTION: Utiliser Zero-Width Space (\u200B) qui est invisible mais valide pour Discord
-                            
-                            // Préparer le payload JSON
+                            // Préparer les embeds en JSON
                             const embedsJson = options.embeds ? options.embeds.map(embed => {
-                                // Convertir l'embed en format JSON si c'est un EmbedBuilder
                                 if (embed && typeof embed.toJSON === 'function') {
                                     return embed.toJSON();
                                 }
                                 return embed;
                             }).filter(embed => embed !== null && embed !== undefined) : [];
                             
-                            const payloadJson = {};
-                            
-                            // Toujours inclure les embeds s'ils existent
-                            if (embedsJson.length > 0) {
-                                payloadJson.embeds = embedsJson;
-                            }
-                            
-                            // Ajouter components s'ils existent
-                            if (options.components) {
-                                payloadJson.components = options.components;
-                            }
-                            
-                            // CRITIQUE: Avec FormData + fichiers + embeds, Discord PEUT rejeter le message
-                            // Si des embeds sont présents, Discord accepte les embeds seuls sans content
-                            // Ne pas ajouter de content si des embeds sont présents pour éviter l'erreur 50006
-                            
-                            // FORCER l'utilisation d'un texte réel (pas d'emoji, pas d'espaces) pour FormData
-                            // Discord rejette les emojis seuls, les espaces, et les chaînes vides avec FormData + fichiers
-                            const DEFAULT_CONTENT = 'Shader animation'; // Texte réel minimal garanti
-                            
-                            // IMPORTANT: Si des embeds sont présents, ne PAS ajouter de content
-                            // Discord accepte les embeds seuls avec FormData + fichiers
-                            // Ajouter un content seulement si aucun embed n'est présent
-                            
-                            // Fonction pour détecter si une chaîne est principalement un emoji
-                            const isEmojiOrInvalid = (str) => {
-                                if (!str || typeof str !== 'string') return true;
-                                const trimmed = str.trim();
-                                if (trimmed.length === 0) return true;
-                                // Détecter les emojis (y compris multi-codepoint comme flags, keycaps, etc.)
-                                // Pattern amélioré pour détecter les emojis Unicode (y compris les séquences)
-                                const emojiPattern = /^[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E0}-\u{1F1FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{200D}\u{FE0F}\u{20E3}]+$/u;
-                                // Si c'est très court (<= 3 caractères) et correspond au pattern emoji, c'est probablement un emoji
-                                if (trimmed.length <= 3 && emojiPattern.test(trimmed)) return true;
-                                // Si c'est seulement des caractères d'espacement Unicode
-                                if (/^[\s\u200B-\u200D\uFEFF]+$/.test(trimmed)) return true;
-                                return false;
-                            };
-                            
-                            // Déterminer le content à utiliser
-                            // IMPORTANT: Si des embeds sont présents, ne PAS ajouter de content
-                            // Discord accepte les embeds seuls avec FormData + fichiers
-                            // Cela évite l'erreur 50006 "Cannot send an empty message"
-                            
-                            if (embedsJson.length > 0) {
-                                // Des embeds sont présents, mais Discord REQUIERT un content non vide avec FormData + fichiers
-                                // Utiliser un espace minimal pour satisfaire cette exigence
-                                payloadJson.content = ' ';
-                                console.log('✅ FormData - embeds présents, ajout d\'un espace minimal pour content (Discord requiert content avec FormData + fichiers)');
-                            } else {
-                                // Pas d'embeds, ajouter un content
-                                // IMPORTANT: Avec FormData, Discord peut avoir des problèmes avec les emojis dans le content
-                                // Simplifier le content en remplaçant les emojis par du texte pour éviter les problèmes d'encodage
-                                if (!options.content || typeof options.content !== 'string') {
-                                    payloadJson.content = DEFAULT_CONTENT;
-                                    console.log('✅ FormData - content manquant, utilisation du texte par défaut');
-                                } else {
-                                    const trimmedContent = options.content.trim();
-                                    
-                                    // Vérifier si le content est valide (non vide, pas seulement emoji/espace)
-                                    if (trimmedContent.length === 0 || isEmojiOrInvalid(trimmedContent)) {
-                                        payloadJson.content = DEFAULT_CONTENT;
-                                        console.log('⚠️ FormData - content invalide (vide, emoji, ou espace), utilisation du texte par défaut');
-                                    } else {
-                                        // Content valide, mais simplifier les emojis pour éviter les problèmes d'encodage avec FormData
-                                        // IMPORTANT: Le content contient déjà le texte après les emojis (ex: "📊 Frames: 60")
-                                        // Donc on supprime simplement les emojis au lieu de les remplacer par du texte
-                                        let simplifiedContent = options.content
-                                            .replace(/✅/g, '[OK]')
-                                            .replace(/📊/g, '') // Supprimer l'emoji (le texte "Frames:" suit déjà)
-                                            .replace(/⏱️/g, '') // Supprimer l'emoji (le texte "Duration:" suit déjà)
-                                            .replace(/📐/g, '') // Supprimer l'emoji (le texte "Resolution:" suit déjà)
-                                            .replace(/💾/g, '') // Supprimer l'emoji (le texte "ID:" suit déjà)
-                                            .replace(/❌/g, '[ERROR]')
-                                            .replace(/⚠️/g, '[WARNING]');
-                                        
-                                        // Si après simplification le content est vide ou invalide, utiliser le default
-                                        const simplifiedTrimmed = simplifiedContent.trim();
-                                        if (simplifiedTrimmed.length === 0 || isEmojiOrInvalid(simplifiedTrimmed)) {
-                                            payloadJson.content = DEFAULT_CONTENT;
-                                            console.log('⚠️ FormData - content simplifié invalide, utilisation du texte par défaut');
-                                        } else {
-                                            payloadJson.content = simplifiedContent;
-                                            console.log('✅ FormData - content simplifié (emojis remplacés) pour éviter problèmes d\'encodage');
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            // Valider que les embeds sont correctement formatés
-                            if (payloadJson.embeds && payloadJson.embeds.length > 0) {
-                                for (let i = 0; i < payloadJson.embeds.length; i++) {
-                                    const embed = payloadJson.embeds[i];
-                                    if (!embed || typeof embed !== 'object') {
-                                        console.error(`❌ Embed ${i} invalide:`, embed);
-                                        throw new Error(`Embed ${i} invalide dans le payload`);
-                                    }
-                                }
-                            }
-                            
-                            // Vérification finale ABSOLUE: s'assurer que le content est toujours présent, non vide, et valide
-                            // Cette vérification est critique pour éviter l'erreur 50006
-                            const DEFAULT_CONTENT_FINAL = 'Shader animation';
-                            
-                            if (!payloadJson.content || typeof payloadJson.content !== 'string') {
-                                payloadJson.content = DEFAULT_CONTENT_FINAL;
-                                console.log('⚠️ FormData - content manquant (final check), utilisation du fallback');
-                            } else {
-                                const trimmedFinal = payloadJson.content.trim();
-                                if (trimmedFinal.length === 0 || isEmojiOrInvalid(trimmedFinal)) {
-                                    payloadJson.content = DEFAULT_CONTENT_FINAL;
-                                    console.log('⚠️ FormData - content invalide après vérification finale, utilisation du fallback');
-                                }
-                            }
-                            
-                            // Vérification finale: s'assurer qu'on a au moins content OU embeds
-                            // Si des embeds sont présents, c'est OK de ne pas avoir de content
-                            if (!payloadJson.content && (!payloadJson.embeds || payloadJson.embeds.length === 0)) {
-                                payloadJson.content = DEFAULT_CONTENT_FINAL;
-                                console.log('⚠️ FormData - payload complètement vide, ajout content de secours');
-                            } else if (payloadJson.embeds && payloadJson.embeds.length > 0 && payloadJson.content) {
-                                // Si des embeds sont présents, supprimer le content pour éviter l'erreur 50006
-                                console.log('⚠️ FormData - embeds présents, suppression du content pour éviter erreur 50006');
-                                delete payloadJson.content;
-                            }
-                            
-                            // LOGGING CRITIQUE avant l'envoi à Discord API
-                            console.log('🔍 DIAGNOSTIC FINAL avant envoi Discord API:');
-                            console.log(`  - Content final: "${payloadJson.content}" (type: ${typeof payloadJson.content}, length: ${payloadJson.content?.length || 0})`);
-                            console.log(`  - Content trimmed: "${payloadJson.content?.trim()}" (length: ${payloadJson.content?.trim()?.length || 0})`);
-                            console.log(`  - Embeds count: ${payloadJson.embeds?.length || 0}`);
-                            console.log(`  - Files count: ${options.files?.length || 0}`);
-                            console.log(`  - Payload JSON keys: ${Object.keys(payloadJson).join(', ')}`);
-                            
-                            // Validation finale stricte
-                            // Si des embeds sont présents, ne pas valider le content (il peut être absent)
-                            if (!payloadJson.embeds || payloadJson.embeds.length === 0) {
-                                if (!payloadJson.content || payloadJson.content.trim().length === 0) {
-                                    console.error('❌ ERREUR CRITIQUE: Content est vide après toutes les vérifications!');
-                                    payloadJson.content = DEFAULT_CONTENT_FINAL;
-                                }
-                            }
-                            
-                            // Stringify le JSON - utiliser JSON.stringify sans replacer pour préserver l'emoji
-                            const payloadJsonString = JSON.stringify(payloadJson);
-                            
-                            // IMPORTANT: Encoder le JSON en Buffer UTF-8 pour garantir un encodage correct
-                            // Discord peut avoir des problèmes avec l'encodage UTF-8 des emojis dans FormData
-                            const payloadJsonBuffer = Buffer.from(payloadJsonString, 'utf8');
-                            
-                            // IMPORTANT: Ajouter payload_json AVANT les fichiers (ordre important pour Discord)
-                            // Utiliser un Buffer au lieu d'une string pour garantir l'encodage UTF-8 correct
-                            formData.append('payload_json', payloadJsonBuffer, {
-                                contentType: 'application/json; charset=utf-8',
-                                filename: 'payload.json' // Certaines implémentations FormData nécessitent un filename
-                            });
-                            
-                            console.log(`📤 Payload JSON préparé: ${payloadJsonString.substring(0, 200)}...`);
-                            console.log(`📋 Payload contient embeds: ${!!payloadJson.embeds && payloadJson.embeds.length > 0}`);
-                            console.log(`📋 Payload contient content: ${!!payloadJson.content} (length: ${payloadJson.content?.length || 0})`);
-                            console.log(`📋 Content value: ${JSON.stringify(payloadJson.content)}`);
-                            console.log(`📋 Content type: ${typeof payloadJson.content}`);
-                            
-                            // Ajouter les fichiers au FormData
-                            for (let i = 0; i < options.files.length; i++) {
-                                const file = options.files[i];
-                                
-                                let fileStream = null;
-                                let fileName = 'file.gif';
-                                
-                                // AttachmentBuilder de discord.js v14 stocke le fichier dans différentes propriétés
-                                // Essayer plusieurs méthodes pour obtenir le fichier
-                                
-                                // Debug: afficher la structure de l'objet file
-                                console.log(`🔍 Structure file[${i}]:`, {
-                                    hasAttachment: !!file.attachment,
-                                    hasData: !!file.data,
-                                    hasFile: !!file.file,
-                                    name: file.name,
-                                    keys: Object.keys(file),
-                                    type: typeof file,
-                                    attachmentType: file.attachment ? typeof file.attachment : 'none'
-                                });
-                                
-                                // Pour AttachmentBuilder de discord.js, le fichier peut être dans plusieurs propriétés
-                                // Essayer d'abord file.attachment (qui peut être un objet avec .data ou directement le stream)
-                                let attachment = null;
-                                
-                                // Méthode 1: file.attachment peut être un objet avec une propriété .data
-                                if (file.attachment) {
-                                    if (file.attachment.data) {
-                                        attachment = file.attachment.data;
-                                    } else if (file.attachment.attachment) {
-                                        attachment = file.attachment.attachment;
-                                    } else if (Buffer.isBuffer(file.attachment) || typeof file.attachment.read === 'function') {
-                                        attachment = file.attachment;
-                                    } else if (typeof file.attachment === 'string') {
-                                        attachment = file.attachment;
-                                    } else if (file.attachment.path) {
-                                        // Peut-être que le chemin est dans .path
-                                        attachment = file.attachment.path;
-                                    }
-                                }
-                                
-                                // Méthode 2: file.data directement
-                                if (!attachment && file.data) {
-                                    attachment = file.data;
-                                }
-                                
-                                // Méthode 3: file.file
-                                if (!attachment && file.file) {
-                                    attachment = file.file;
-                                }
-                                
-                                // Méthode 4: file est directement une string (chemin)
-                                if (!attachment && typeof file === 'string') {
-                                    attachment = file;
-                                }
-                                
-                                // Traiter l'attachment trouvé
-                                if (attachment) {
-                                    if (typeof attachment === 'string') {
-                                        // C'est un chemin de fichier
-                                        if (fs.existsSync(attachment)) {
-                                            fileStream = fs.createReadStream(attachment);
-                                            fileName = file.name || path.basename(attachment);
-                                            console.log(`✅ Ajout fichier ${i}: ${fileName} depuis ${attachment}`);
-                                        } else {
-                                            console.error(`❌ Fichier introuvable: ${attachment}`);
-                                            // Ne pas continuer, essayer d'autres méthodes
-                                        }
-                                    } else if (Buffer.isBuffer(attachment)) {
-                                        // C'est un Buffer
-                                        fileStream = attachment;
-                                        fileName = file.name || 'file.gif';
-                                        console.log(`✅ Ajout fichier ${i}: ${fileName} (Buffer, ${attachment.length} bytes)`);
-                                    } else if (attachment && typeof attachment.read === 'function') {
-                                        // C'est un Stream
-                                        fileStream = attachment;
-                                        fileName = file.name || 'file.gif';
-                                        console.log(`✅ Ajout fichier ${i}: ${fileName} (Stream)`);
-                                    } else {
-                                        console.warn(`⚠️ Type d'attachment non reconnu pour file[${i}]:`, typeof attachment);
-                                    }
-                                }
-                                
-                                // Si file.attachment est une string mais n'a pas été traité, essayer directement
-                                if (!fileStream && file.attachment && typeof file.attachment === 'string') {
-                                    if (fs.existsSync(file.attachment)) {
-                                        fileStream = fs.createReadStream(file.attachment);
-                                        fileName = file.name || path.basename(file.attachment);
-                                        console.log(`✅ Ajout fichier ${i}: ${fileName} depuis file.attachment direct: ${file.attachment}`);
-                                    }
-                                }
-                                
-                                // Si on n'a toujours pas de stream, essayer de lire directement depuis le chemin
-                                // AttachmentBuilder peut stocker le chemin dans une propriété cachée
-                                if (!fileStream && file.name) {
-                                    // Essayer plusieurs chemins possibles
-                                    const possiblePaths = [
-                                        path.join(process.cwd(), file.name),
-                                        file.name,
-                                        path.resolve(file.name)
-                                    ];
-                                    
-                                    for (const possiblePath of possiblePaths) {
-                                        if (fs.existsSync(possiblePath)) {
-                                            fileStream = fs.createReadStream(possiblePath);
-                                            fileName = file.name;
-                                            console.log(`✅ Ajout fichier ${i}: ${fileName} depuis chemin déduit ${possiblePath}`);
-                                            break;
-                                        }
-                                    }
-                                }
-                                
-                                // Dernière tentative: si file.attachment est un objet, essayer de le convertir
-                                if (!fileStream && file.attachment && typeof file.attachment === 'object') {
-                                    // Essayer de lire depuis toutes les propriétés possibles
-                                    const attachmentObj = file.attachment;
-                                    for (const key of ['path', 'file', 'data', 'buffer', 'stream']) {
-                                        if (attachmentObj[key]) {
-                                            if (typeof attachmentObj[key] === 'string' && fs.existsSync(attachmentObj[key])) {
-                                                fileStream = fs.createReadStream(attachmentObj[key]);
-                                                fileName = file.name || path.basename(attachmentObj[key]);
-                                                console.log(`✅ Ajout fichier ${i}: ${fileName} depuis ${key}: ${attachmentObj[key]}`);
-                                                break;
-                                            } else if (Buffer.isBuffer(attachmentObj[key])) {
-                                                fileStream = attachmentObj[key];
-                                                fileName = file.name || 'file.gif';
-                                                console.log(`✅ Ajout fichier ${i}: ${fileName} depuis ${key} (Buffer)`);
-                                                break;
-                                            } else if (attachmentObj[key] && typeof attachmentObj[key].read === 'function') {
-                                                fileStream = attachmentObj[key];
-                                                fileName = file.name || 'file.gif';
-                                                console.log(`✅ Ajout fichier ${i}: ${fileName} depuis ${key} (Stream)`);
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                if (fileStream) {
-                                    // IMPORTANT: Discord nécessite que le fichier soit envoyé avec le bon format
-                                    // Le format doit être exactement: files[0], files[1], etc.
-                                    const fileOptions = {
-                                        filename: fileName,
-                                        contentType: fileName.endsWith('.gif') ? 'image/gif' : fileName.endsWith('.png') ? 'image/png' : 'application/octet-stream'
-                                    };
-                                    
-                                    // Si c'est un stream avec un path, ajouter knownLength pour de meilleures performances
-                                    if (fileStream.path && fs.existsSync(fileStream.path)) {
-                                        try {
-                                            const stats = fs.statSync(fileStream.path);
-                                            fileOptions.knownLength = stats.size;
-                                        } catch (e) {
-                                            // Ignorer si on ne peut pas obtenir la taille
-                                        }
-                                    }
-                                    
-                                    formData.append(`files[${i}]`, fileStream, fileOptions);
-                                    console.log(`✅ Fichier ${i} ajouté au FormData: ${fileName}${fileOptions.knownLength ? ` (${fileOptions.knownLength} bytes)` : ''}`);
-                                } else {
-                                    console.error(`❌ Impossible de trouver le fichier pour l'index ${i}. Structure:`, {
-                                        keys: Object.keys(file),
-                                        name: file.name,
-                                        attachment: file.attachment ? typeof file.attachment : 'none',
-                                        data: file.data ? typeof file.data : 'none',
-                                        attachmentValue: file.attachment
-                                    });
-                                    // Si aucun fichier n'a pu être trouvé, ne pas envoyer le FormData
-                                    // Cela évitera l'erreur "Cannot send an empty message"
-                                    throw new Error(`Impossible de trouver le fichier pour l'index ${i}. Le fichier doit être présent pour envoyer un message avec FormData.`);
-                                }
-                            }
-                            
-                            // Le payload JSON a déjà été préparé et ajouté AVANT les fichiers
-                            // Juste logger les informations finales avant l'envoi
-                            console.log(`📤 Envoi FormData avec ${options.files.length} fichier(s)`);
-                            
-                            // Envoyer avec FormData - utiliser fetch directement car discord.js REST peut avoir des problèmes
-                            const webhookUrl = `https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`;
-                            const discordToken = process.env.DISCORD_TOKEN;
-                            
-                            if (!discordToken) {
-                                throw new Error('DISCORD_TOKEN manquant pour l\'envoi de fichiers');
-                            }
-                            
-                            // IMPORTANT: Ne pas inclure Content-Type dans les headers - FormData le définit automatiquement avec boundary
-                            let headers = {
-                                ...formData.getHeaders(),
-                                'Authorization': `Bot ${discordToken}`
-                            };
-                            
-                            // Vérifier que nous avons au moins un fichier et un payload_json
-                            console.log(`🔍 Vérification FormData avant envoi:`);
-                            console.log(`  - Nombre de fichiers: ${options.files.length}`);
-                            console.log(`  - Payload JSON length: ${payloadJsonString.length}`);
-                            console.log(`  - Content dans payload: ${!!payloadJson.content ? `"${payloadJson.content}"` : 'N/A'} (length: ${payloadJson.content?.length || 0})`);
-                            console.log(`  - Content trimmed: "${payloadJson.content?.trim()}" (length: ${payloadJson.content?.trim()?.length || 0})`);
-                            console.log(`  - Embeds dans payload: ${payloadJson.embeds?.length || 0}`);
-                            
-                            // Validation des fichiers avant envoi
-                            for (let i = 0; i < options.files.length; i++) {
-                                const file = options.files[i];
-                                const filePath = typeof file.attachment === 'string' ? file.attachment : 'unknown';
-                                const fileExists = typeof file.attachment === 'string' && fs.existsSync(file.attachment);
-                                let fileSize = 0;
-                                if (fileExists) {
-                                    try {
-                                        const stats = fs.statSync(file.attachment);
-                                        fileSize = stats.size;
-                                    } catch (e) {
-                                        // Ignorer
-                                    }
-                                }
-                                console.log(`  - Fichier ${i}: ${file.name || 'unnamed'} (path: ${filePath}, exists: ${fileExists}, size: ${fileSize} bytes)`);
-                            }
-                            
-                            // ✅ VÉRIFICATION FINALE ABSOLUE avant l'envoi à Discord
-                            // Cette vérification est critique pour éviter l'erreur 50006
-                            // IMPORTANT: Si des embeds sont présents, le content peut être undefined (c'est OK)
-                            const finalContent = payloadJson.content;
-                            const finalContentTrimmed = finalContent?.trim() || '';
-                            const hasEmbeds = payloadJson.embeds && payloadJson.embeds.length > 0;
-                            
-                            // Vérifier que le content est valide SEULEMENT s'il n'y a pas d'embeds
-                            // Si des embeds sont présents, Discord accepte les embeds seuls sans content
-                            if (!hasEmbeds && (!finalContent || typeof finalContent !== 'string' || finalContentTrimmed.length === 0)) {
-                                console.error('❌ ERREUR CRITIQUE: Content est vide/invalide juste avant l\'envoi!');
-                                console.error(`  - Content original: ${JSON.stringify(finalContent)}`);
-                                console.error(`  - Content type: ${typeof finalContent}`);
-                                console.error(`  - Content trimmed length: ${finalContentTrimmed.length}`);
-                                payloadJson.content = 'Shader animation';
-                                // Re-stringify le JSON avec le content corrigé
-                                const correctedPayloadJsonString = JSON.stringify(payloadJson);
-                                const correctedPayloadJsonBuffer = Buffer.from(correctedPayloadJsonString, 'utf8');
-                                // Remplacer le payload_json dans FormData
-                                const FormDataModule = require('form-data');
-                                const newFormData = new FormDataModule();
-                                newFormData.append('payload_json', correctedPayloadJsonBuffer, {
-                                    contentType: 'application/json; charset=utf-8',
-                                    filename: 'payload.json'
-                                });
-                                // Ré-ajouter les fichiers
-                                for (let i = 0; i < options.files.length; i++) {
-                                    const file = options.files[i];
-                                    let fileStream = null;
-                                    let fileName = 'file.gif';
-                                    
+                            // Extraire les chemins de fichiers des AttachmentBuilder
+                            const extractFilePaths = () => {
+                                const filePaths = [];
+                                for (const file of options.files) {
                                     if (file.attachment) {
                                         if (typeof file.attachment === 'string' && fs.existsSync(file.attachment)) {
-                                            fileStream = fs.createReadStream(file.attachment);
-                                            fileName = file.name || path.basename(file.attachment);
+                                            filePaths.push({
+                                                path: file.attachment,
+                                                name: file.name || path.basename(file.attachment),
+                                                type: 'path'
+                                            });
                                         } else if (Buffer.isBuffer(file.attachment)) {
-                                            fileStream = file.attachment;
-                                            fileName = file.name || 'file.gif';
-                                        }
-                                    }
-                                    
-                                    if (fileStream) {
-                                        newFormData.append(`files[${i}]`, fileStream, {
-                                            filename: fileName,
-                                            contentType: fileName.endsWith('.gif') ? 'image/gif' : 'image/png'
-                                        });
-                                    }
-                                }
-                                // Remplacer formData
-                                formData = newFormData;
-                                // Mettre à jour headers
-                                headers = {
-                                    ...formData.getHeaders(),
-                                    'Authorization': `Bot ${process.env.DISCORD_TOKEN}`
-                                };
-                                console.log('✅ Content corrigé, FormData reconstruit');
-                            }
-                            
-                            // Vérifier que les fichiers sont valides (taille > 0, existe)
-                            for (let i = 0; i < options.files.length; i++) {
-                                const file = options.files[i];
-                                if (typeof file.attachment === 'string' && fs.existsSync(file.attachment)) {
-                                    try {
-                                        const stats = fs.statSync(file.attachment);
-                                        if (stats.size === 0) {
-                                            console.error(`❌ ERREUR: Fichier ${i} (${file.name}) a une taille de 0 bytes!`);
-                                            throw new Error(`Fichier ${file.name} est vide (0 bytes)`);
-                                        }
-                                        if (stats.size > 25 * 1024 * 1024) { // 25 MB limite Discord
-                                            console.error(`❌ ERREUR: Fichier ${i} (${file.name}) dépasse la limite de 25 MB!`);
-                                            throw new Error(`Fichier ${file.name} est trop grand (${stats.size} bytes)`);
-                                        }
-                                    } catch (e) {
-                                        if (e.message && (e.message.includes('vide') || e.message.includes('trop grand'))) {
-                                            throw e;
-                                        }
-                                        // Ignorer les autres erreurs de stat
-                                    }
-                                }
-                            }
-                            
-                            // Vérifier que nous avons au moins content OU embeds
-                            if (!payloadJson.content && (!payloadJson.embeds || payloadJson.embeds.length === 0)) {
-                                console.error('❌ ERREUR CRITIQUE: Ni content ni embeds présents!');
-                                throw new Error('Payload Discord invalide: ni content ni embeds présents');
-                            }
-                            
-                            // 🧪 SYSTÈME DE FALLBACK: Tester plusieurs stratégies pour trouver celle qui fonctionne
-                            // Fonction helper pour construire un FormData avec une stratégie de content spécifique
-                            const buildFormDataWithStrategy = (contentStrategy) => {
-                                const FormDataModule = require('form-data');
-                                const newFormData = new FormDataModule();
-                                
-                                // Créer un nouveau payload avec la stratégie de content
-                                const strategyPayload = { ...payloadJson };
-                                
-                                if (contentStrategy === 'original') {
-                                    // Stratégie 1: Utiliser options.content original
-                                    if (options.content && typeof options.content === 'string' && options.content.trim().length > 0) {
-                                        strategyPayload.content = options.content;
-                                    } else {
-                                        strategyPayload.content = 'Shader animation';
-                                    }
-                                } else if (contentStrategy === 'empty_string') {
-                                    // Stratégie 2: Content comme chaîne vide ""
-                                    strategyPayload.content = '';
-                                } else if (contentStrategy === 'dot') {
-                                    // Stratégie 3: Content minimal "."
-                                    strategyPayload.content = '.';
-                                } else if (contentStrategy === 'text') {
-                                    // Stratégie 4: Texte réel
-                                    strategyPayload.content = 'Shader animation';
-                                } else if (contentStrategy === 'separate_field') {
-                                    // Stratégie 5: Content séparé dans FormData (sans dans payload_json)
-                                    delete strategyPayload.content;
-                                    // On ajoutera content séparément après
-                                } else if (contentStrategy === 'no_content') {
-                                    // Stratégie 6: Pas de content du tout
-                                    delete strategyPayload.content;
-                                }
-                                
-                                // Ajouter payload_json
-                                const payloadJsonString = JSON.stringify(strategyPayload);
-                                const payloadJsonBuffer = Buffer.from(payloadJsonString, 'utf8');
-                                newFormData.append('payload_json', payloadJsonBuffer, {
-                                    contentType: 'application/json; charset=utf-8',
-                                    filename: 'payload.json'
-                                });
-                                
-                                // Si stratégie "separate_field", ajouter content séparément
-                                if (contentStrategy === 'separate_field') {
-                                    newFormData.append('content', 'Shader animation');
-                                }
-                                
-                                // Ré-ajouter les fichiers
-                                for (let i = 0; i < options.files.length; i++) {
-                                    const file = options.files[i];
-                                    let fileStream = null;
-                                    let fileName = 'file.gif';
-                                    
-                                    if (file.attachment) {
-                                        if (typeof file.attachment === 'string' && fs.existsSync(file.attachment)) {
-                                            fileStream = fs.createReadStream(file.attachment);
-                                            fileName = file.name || path.basename(file.attachment);
-                                        } else if (Buffer.isBuffer(file.attachment)) {
-                                            fileStream = file.attachment;
-                                            fileName = file.name || 'file.gif';
+                                            filePaths.push({
+                                                buffer: file.attachment,
+                                                name: file.name || 'file.gif',
+                                                type: 'buffer'
+                                            });
                                         } else if (file.attachment && typeof file.attachment.read === 'function') {
-                                            fileStream = file.attachment;
-                                            fileName = file.name || 'file.gif';
+                                            filePaths.push({
+                                                stream: file.attachment,
+                                                name: file.name || 'file.gif',
+                                                type: 'stream'
+                                            });
                                         } else if (typeof file.attachment === 'object') {
-                                            // Essayer de trouver le fichier dans l'objet
+                                            const attachmentObj = file.attachment;
                                             for (const key of ['path', 'file', 'data', 'buffer', 'stream']) {
-                                                if (file.attachment[key]) {
-                                                    if (typeof file.attachment[key] === 'string' && fs.existsSync(file.attachment[key])) {
-                                                        fileStream = fs.createReadStream(file.attachment[key]);
-                                                        fileName = file.name || path.basename(file.attachment[key]);
+                                                if (attachmentObj[key]) {
+                                                    if (typeof attachmentObj[key] === 'string' && fs.existsSync(attachmentObj[key])) {
+                                                        filePaths.push({
+                                                            path: attachmentObj[key],
+                                                            name: file.name || path.basename(attachmentObj[key]),
+                                                            type: 'path'
+                                                        });
                                                         break;
-                                                    } else if (Buffer.isBuffer(file.attachment[key])) {
-                                                        fileStream = file.attachment[key];
-                                                        fileName = file.name || 'file.gif';
+                                                    } else if (Buffer.isBuffer(attachmentObj[key])) {
+                                                        filePaths.push({
+                                                            buffer: attachmentObj[key],
+                                                            name: file.name || 'file.gif',
+                                                            type: 'buffer'
+                                                        });
                                                         break;
-                                                    } else if (file.attachment[key] && typeof file.attachment[key].read === 'function') {
-                                                        fileStream = file.attachment[key];
-                                                        fileName = file.name || 'file.gif';
+                                                    } else if (attachmentObj[key] && typeof attachmentObj[key].read === 'function') {
+                                                        filePaths.push({
+                                                            stream: attachmentObj[key],
+                                                            name: file.name || 'file.gif',
+                                                            type: 'stream'
+                                                        });
                                                         break;
                                                     }
                                                 }
                                             }
                                         }
                                     }
-                                    
-                                    if (fileStream) {
-                                        const fileOptions = {
-                                            filename: fileName,
-                                            contentType: fileName.endsWith('.gif') ? 'image/gif' : fileName.endsWith('.png') ? 'image/png' : 'application/octet-stream'
-                                        };
-                                        
-                                        if (fileStream.path && fs.existsSync(fileStream.path)) {
-                                            try {
-                                                const stats = fs.statSync(fileStream.path);
-                                                fileOptions.knownLength = stats.size;
-                                            } catch (e) {
-                                                // Ignorer
-                                            }
-                                        }
-                                        
-                                        newFormData.append(`files[${i}]`, fileStream, fileOptions);
-                                    }
                                 }
-                                
-                                return { formData: newFormData, payload: strategyPayload };
+                                return filePaths;
                             };
                             
-                            // Liste des stratégies à tester dans l'ordre
+                            const filePaths = extractFilePaths();
+                            if (filePaths.length === 0) {
+                                throw new Error('Aucun fichier valide trouvé dans options.files');
+                            }
+                            
+                            // Liste de TOUTES les stratégies à tester
                             const strategies = [
-                                { name: 'original', desc: 'Utiliser options.content original' },
-                                { name: 'text', desc: 'Texte réel "Shader animation"' },
-                                { name: 'dot', desc: 'Point minimal "."' },
-                                { name: 'empty_string', desc: 'Chaîne vide ""' },
-                                { name: 'separate_field', desc: 'Content séparé dans FormData' },
-                                { name: 'no_content', desc: 'Pas de content (embeds seuls)' }
+                                // STRATÉGIES rest.patch
+                                {
+                                    name: 'rest.patch_with_AttachmentBuilder',
+                                    desc: 'rest.patch avec AttachmentBuilder originaux',
+                                    test: async () => {
+                                        const restPayload = {
+                                            embeds: embedsJson,
+                                            components: options.components,
+                                            content: options.content || 'Shader animation'
+                                        };
+                                        await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
+                                            body: restPayload,
+                                            files: options.files
+                                        });
+                                    }
+                                },
+                                {
+                                    name: 'rest.patch_with_paths',
+                                    desc: 'rest.patch avec chemins de fichiers (objets)',
+                                    test: async () => {
+                                        const restPayload = {
+                                            embeds: embedsJson,
+                                            components: options.components,
+                                            content: options.content || 'Shader animation'
+                                        };
+                                        const fileAttachments = filePaths.map(fp => ({
+                                            attachment: fp.path || fp.buffer || fp.stream,
+                                            name: fp.name
+                                        }));
+                                        await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
+                                            body: restPayload,
+                                            files: fileAttachments
+                                        });
+                                    }
+                                },
+                                {
+                                    name: 'rest.patch_with_paths_strings',
+                                    desc: 'rest.patch avec chemins de fichiers (strings)',
+                                    test: async () => {
+                                        const restPayload = {
+                                            embeds: embedsJson,
+                                            components: options.components,
+                                            content: options.content || 'Shader animation'
+                                        };
+                                        const fileAttachments = filePaths.filter(fp => fp.path).map(fp => fp.path);
+                                        await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
+                                            body: restPayload,
+                                            files: fileAttachments
+                                        });
+                                    }
+                                },
+                                {
+                                    name: 'rest.patch_with_buffers',
+                                    desc: 'rest.patch avec Buffers',
+                                    test: async () => {
+                                        const restPayload = {
+                                            embeds: embedsJson,
+                                            components: options.components,
+                                            content: options.content || 'Shader animation'
+                                        };
+                                        const fileAttachments = filePaths.map(fp => {
+                                            if (fp.buffer) return fp.buffer;
+                                            if (fp.path) return fs.readFileSync(fp.path);
+                                            return null;
+                                        }).filter(f => f !== null);
+                                        await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
+                                            body: restPayload,
+                                            files: fileAttachments
+                                        });
+                                    }
+                                },
+                                
+                                // STRATÉGIES FormData avec différents contents
+                                {
+                                    name: 'formdata_content_text',
+                                    desc: 'FormData avec content texte "Shader animation"',
+                                    test: async () => {
+                                        const FormDataModule = require('form-data');
+                                        const formData = new FormDataModule();
+                                        const payload = {
+                                            embeds: embedsJson,
+                                            components: options.components,
+                                            content: 'Shader animation'
+                                        };
+                                        formData.append('payload_json', Buffer.from(JSON.stringify(payload), 'utf8'), {
+                                            contentType: 'application/json; charset=utf-8',
+                                            filename: 'payload.json'
+                                        });
+                                        for (let i = 0; i < filePaths.length; i++) {
+                                            const fp = filePaths[i];
+                                            let fileStream = null;
+                                            if (fp.path) {
+                                                fileStream = fs.createReadStream(fp.path);
+                                            } else if (fp.buffer) {
+                                                fileStream = fp.buffer;
+                                            } else if (fp.stream) {
+                                                fileStream = fp.stream;
+                                            }
+                                            if (fileStream) {
+                                                formData.append(`files[${i}]`, fileStream, {
+                                                    filename: fp.name,
+                                                    contentType: fp.name.endsWith('.gif') ? 'image/gif' : 'image/png'
+                                                });
+                                            }
+                                        }
+                                        const webhookUrl = `https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`;
+                                        const response = await fetch(webhookUrl, {
+                                            method: 'PATCH',
+                                            headers: {
+                                                ...formData.getHeaders(),
+                                                'Authorization': `Bot ${process.env.DISCORD_TOKEN}`
+                                            },
+                                            body: formData
+                                        });
+                                        if (!response.ok) {
+                                            const errorText = await response.text();
+                                            throw new Error(`HTTP ${response.status}: ${errorText}`);
+                                        }
+                                    }
+                                },
+                                {
+                                    name: 'formdata_content_nonbreaking_space',
+                                    desc: 'FormData avec content non-breaking space',
+                                    test: async () => {
+                                        const FormDataModule = require('form-data');
+                                        const formData = new FormDataModule();
+                                        const payload = {
+                                            embeds: embedsJson,
+                                            components: options.components,
+                                            content: '\u00A0' // Non-breaking space
+                                        };
+                                        formData.append('payload_json', Buffer.from(JSON.stringify(payload), 'utf8'), {
+                                            contentType: 'application/json; charset=utf-8',
+                                            filename: 'payload.json'
+                                        });
+                                        for (let i = 0; i < filePaths.length; i++) {
+                                            const fp = filePaths[i];
+                                            let fileStream = null;
+                                            if (fp.path) {
+                                                fileStream = fs.createReadStream(fp.path);
+                                            } else if (fp.buffer) {
+                                                fileStream = fp.buffer;
+                                            } else if (fp.stream) {
+                                                fileStream = fp.stream;
+                                            }
+                                            if (fileStream) {
+                                                formData.append(`files[${i}]`, fileStream, {
+                                                    filename: fp.name,
+                                                    contentType: fp.name.endsWith('.gif') ? 'image/gif' : 'image/png'
+                                                });
+                                            }
+                                        }
+                                        const webhookUrl = `https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`;
+                                        const response = await fetch(webhookUrl, {
+                                            method: 'PATCH',
+                                            headers: {
+                                                ...formData.getHeaders(),
+                                                'Authorization': `Bot ${process.env.DISCORD_TOKEN}`
+                                            },
+                                            body: formData
+                                        });
+                                        if (!response.ok) {
+                                            const errorText = await response.text();
+                                            throw new Error(`HTTP ${response.status}: ${errorText}`);
+                                        }
+                                    }
+                                },
+                                {
+                                    name: 'formdata_content_shader_id',
+                                    desc: 'FormData avec content "Shader ID: X"',
+                                    test: async () => {
+                                        const FormDataModule = require('form-data');
+                                        const formData = new FormDataModule();
+                                        // Extraire l'ID du shader depuis l'embed si possible
+                                        let shaderId = '1';
+                                        if (embedsJson.length > 0 && embedsJson[0].fields) {
+                                            const idField = embedsJson[0].fields.find(f => f.name && f.name.includes('ID'));
+                                            if (idField) {
+                                                shaderId = idField.value.replace(/[`\s]/g, '');
+                                            }
+                                        }
+                                        const payload = {
+                                            embeds: embedsJson,
+                                            components: options.components,
+                                            content: `Shader ID: ${shaderId}`
+                                        };
+                                        formData.append('payload_json', Buffer.from(JSON.stringify(payload), 'utf8'), {
+                                            contentType: 'application/json; charset=utf-8',
+                                            filename: 'payload.json'
+                                        });
+                                        for (let i = 0; i < filePaths.length; i++) {
+                                            const fp = filePaths[i];
+                                            let fileStream = null;
+                                            if (fp.path) {
+                                                fileStream = fs.createReadStream(fp.path);
+                                            } else if (fp.buffer) {
+                                                fileStream = fp.buffer;
+                                            } else if (fp.stream) {
+                                                fileStream = fp.stream;
+                                            }
+                                            if (fileStream) {
+                                                formData.append(`files[${i}]`, fileStream, {
+                                                    filename: fp.name,
+                                                    contentType: fp.name.endsWith('.gif') ? 'image/gif' : 'image/png'
+                                                });
+                                            }
+                                        }
+                                        const webhookUrl = `https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`;
+                                        const response = await fetch(webhookUrl, {
+                                            method: 'PATCH',
+                                            headers: {
+                                                ...formData.getHeaders(),
+                                                'Authorization': `Bot ${process.env.DISCORD_TOKEN}`
+                                            },
+                                            body: formData
+                                        });
+                                        if (!response.ok) {
+                                            const errorText = await response.text();
+                                            throw new Error(`HTTP ${response.status}: ${errorText}`);
+                                        }
+                                    }
+                                },
+                                {
+                                    name: 'formdata_content_separate_field',
+                                    desc: 'FormData avec content dans champ séparé (pas dans payload_json)',
+                                    test: async () => {
+                                        const FormDataModule = require('form-data');
+                                        const formData = new FormDataModule();
+                                        const payload = {
+                                            embeds: embedsJson,
+                                            components: options.components
+                                            // Pas de content dans payload_json
+                                        };
+                                        formData.append('payload_json', Buffer.from(JSON.stringify(payload), 'utf8'), {
+                                            contentType: 'application/json; charset=utf-8',
+                                            filename: 'payload.json'
+                                        });
+                                        formData.append('content', 'Shader animation'); // Content séparé
+                                        for (let i = 0; i < filePaths.length; i++) {
+                                            const fp = filePaths[i];
+                                            let fileStream = null;
+                                            if (fp.path) {
+                                                fileStream = fs.createReadStream(fp.path);
+                                            } else if (fp.buffer) {
+                                                fileStream = fp.buffer;
+                                            } else if (fp.stream) {
+                                                fileStream = fp.stream;
+                                            }
+                                            if (fileStream) {
+                                                formData.append(`files[${i}]`, fileStream, {
+                                                    filename: fp.name,
+                                                    contentType: fp.name.endsWith('.gif') ? 'image/gif' : 'image/png'
+                                                });
+                                            }
+                                        }
+                                        const webhookUrl = `https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`;
+                                        const response = await fetch(webhookUrl, {
+                                            method: 'PATCH',
+                                            headers: {
+                                                ...formData.getHeaders(),
+                                                'Authorization': `Bot ${process.env.DISCORD_TOKEN}`
+                                            },
+                                            body: formData
+                                        });
+                                        if (!response.ok) {
+                                            const errorText = await response.text();
+                                            throw new Error(`HTTP ${response.status}: ${errorText}`);
+                                        }
+                                    }
+                                },
+                                {
+                                    name: 'formdata_files_without_index',
+                                    desc: 'FormData avec files sans index (files au lieu de files[0])',
+                                    test: async () => {
+                                        const FormDataModule = require('form-data');
+                                        const formData = new FormDataModule();
+                                        const payload = {
+                                            embeds: embedsJson,
+                                            components: options.components,
+                                            content: 'Shader animation'
+                                        };
+                                        formData.append('payload_json', Buffer.from(JSON.stringify(payload), 'utf8'), {
+                                            contentType: 'application/json; charset=utf-8',
+                                            filename: 'payload.json'
+                                        });
+                                        for (let i = 0; i < filePaths.length; i++) {
+                                            const fp = filePaths[i];
+                                            let fileStream = null;
+                                            if (fp.path) {
+                                                fileStream = fs.createReadStream(fp.path);
+                                            } else if (fp.buffer) {
+                                                fileStream = fp.buffer;
+                                            } else if (fp.stream) {
+                                                fileStream = fp.stream;
+                                            }
+                                            if (fileStream) {
+                                                // Utiliser 'files' au lieu de 'files[0]'
+                                                formData.append('files', fileStream, {
+                                                    filename: fp.name,
+                                                    contentType: fp.name.endsWith('.gif') ? 'image/gif' : 'image/png'
+                                                });
+                                            }
+                                        }
+                                        const webhookUrl = `https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`;
+                                        const response = await fetch(webhookUrl, {
+                                            method: 'PATCH',
+                                            headers: {
+                                                ...formData.getHeaders(),
+                                                'Authorization': `Bot ${process.env.DISCORD_TOKEN}`
+                                            },
+                                            body: formData
+                                        });
+                                        if (!response.ok) {
+                                            const errorText = await response.text();
+                                            throw new Error(`HTTP ${response.status}: ${errorText}`);
+                                        }
+                                    }
+                                },
+                                {
+                                    name: 'formdata_file_singular',
+                                    desc: 'FormData avec file au singulier (file au lieu de files[0])',
+                                    test: async () => {
+                                        const FormDataModule = require('form-data');
+                                        const formData = new FormDataModule();
+                                        const payload = {
+                                            embeds: embedsJson,
+                                            components: options.components,
+                                            content: 'Shader animation'
+                                        };
+                                        formData.append('payload_json', Buffer.from(JSON.stringify(payload), 'utf8'), {
+                                            contentType: 'application/json; charset=utf-8',
+                                            filename: 'payload.json'
+                                        });
+                                        for (let i = 0; i < filePaths.length; i++) {
+                                            const fp = filePaths[i];
+                                            let fileStream = null;
+                                            if (fp.path) {
+                                                fileStream = fs.createReadStream(fp.path);
+                                            } else if (fp.buffer) {
+                                                fileStream = fp.buffer;
+                                            } else if (fp.stream) {
+                                                fileStream = fp.stream;
+                                            }
+                                            if (fileStream) {
+                                                // Utiliser 'file' au lieu de 'files[0]'
+                                                formData.append('file', fileStream, {
+                                                    filename: fp.name,
+                                                    contentType: fp.name.endsWith('.gif') ? 'image/gif' : 'image/png'
+                                                });
+                                            }
+                                        }
+                                        const webhookUrl = `https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`;
+                                        const response = await fetch(webhookUrl, {
+                                            method: 'PATCH',
+                                            headers: {
+                                                ...formData.getHeaders(),
+                                                'Authorization': `Bot ${process.env.DISCORD_TOKEN}`
+                                            },
+                                            body: formData
+                                        });
+                                        if (!response.ok) {
+                                            const errorText = await response.text();
+                                            throw new Error(`HTTP ${response.status}: ${errorText}`);
+                                        }
+                                    }
+                                },
+                                {
+                                    name: 'formdata_buffers_instead_of_streams',
+                                    desc: 'FormData avec Buffers au lieu de Streams',
+                                    test: async () => {
+                                        const FormDataModule = require('form-data');
+                                        const formData = new FormDataModule();
+                                        const payload = {
+                                            embeds: embedsJson,
+                                            components: options.components,
+                                            content: 'Shader animation'
+                                        };
+                                        formData.append('payload_json', Buffer.from(JSON.stringify(payload), 'utf8'), {
+                                            contentType: 'application/json; charset=utf-8',
+                                            filename: 'payload.json'
+                                        });
+                                        for (let i = 0; i < filePaths.length; i++) {
+                                            const fp = filePaths[i];
+                                            let fileBuffer = null;
+                                            if (fp.buffer) {
+                                                fileBuffer = fp.buffer;
+                                            } else if (fp.path) {
+                                                fileBuffer = fs.readFileSync(fp.path);
+                                            } else if (fp.stream && fp.stream.path) {
+                                                fileBuffer = fs.readFileSync(fp.stream.path);
+                                            }
+                                            if (fileBuffer) {
+                                                formData.append(`files[${i}]`, fileBuffer, {
+                                                    filename: fp.name,
+                                                    contentType: fp.name.endsWith('.gif') ? 'image/gif' : 'image/png'
+                                                });
+                                            }
+                                        }
+                                        const webhookUrl = `https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`;
+                                        const response = await fetch(webhookUrl, {
+                                            method: 'PATCH',
+                                            headers: {
+                                                ...formData.getHeaders(),
+                                                'Authorization': `Bot ${process.env.DISCORD_TOKEN}`
+                                            },
+                                            body: formData
+                                        });
+                                        if (!response.ok) {
+                                            const errorText = await response.text();
+                                            throw new Error(`HTTP ${response.status}: ${errorText}`);
+                                        }
+                                    }
+                                }
                             ];
                             
+                            // Tester chaque stratégie jusqu'à ce qu'une fonctionne
                             let lastError = null;
                             let successStrategy = null;
                             
-                            // Essayer chaque stratégie jusqu'à ce qu'une fonctionne
                             for (const strategy of strategies) {
                                 try {
                                     console.log(`🧪 TEST STRATÉGIE "${strategy.name}": ${strategy.desc}`);
-                                    
-                                    const { formData: testFormData, payload: testPayload } = buildFormDataWithStrategy(strategy.name);
-                                    const testHeaders = {
-                                        ...testFormData.getHeaders(),
-                                        'Authorization': `Bot ${discordToken}`
-                                    };
-                                    
-                                    console.log(`  - Content dans payload: ${testPayload.content !== undefined ? `"${testPayload.content}"` : 'undefined'} (type: ${typeof testPayload.content})`);
-                                    console.log(`  - Payload keys: ${Object.keys(testPayload).join(', ')}`);
-                                    
-                                    const response = await fetch(webhookUrl, {
-                                        method: 'PATCH',
-                                        headers: testHeaders,
-                                        body: testFormData
-                                    });
-                                    
-                                    console.log(`  - Réponse: ${response.status} ${response.statusText}`);
-                                    
-                                    if (response.ok) {
-                                        const responseData = await response.json().catch(() => ({}));
-                                        console.log(`✅ ✅ ✅ SUCCÈS avec stratégie "${strategy.name}"! ✅ ✅ ✅`);
-                                        console.log(`✅ Cette stratégie fonctionne: ${strategy.desc}`);
-                                        successStrategy = strategy.name;
-                                        break; // Sortir de la boucle, on a trouvé la bonne stratégie
-                                    } else {
-                                        const errorText = await response.text();
-                                        console.log(`  - ❌ Échec: ${errorText.substring(0, 100)}`);
-                                        
-                                        if (errorText.includes('empty message')) {
-                                            lastError = new Error(`Strategy "${strategy.name}" failed: ${errorText.substring(0, 200)}`);
-                                            continue; // Essayer la stratégie suivante
-                                        } else {
-                                            // Autre erreur (pas empty message), peut-être que cette stratégie est proche
-                                            lastError = new Error(`Strategy "${strategy.name}" failed: ${errorText.substring(0, 200)}`);
-                                            continue;
-                                        }
-                                    }
+                                    await strategy.test();
+                                    console.log(`✅ ✅ ✅ SUCCÈS avec stratégie "${strategy.name}"! ✅ ✅ ✅`);
+                                    console.log(`✅ Cette stratégie fonctionne: ${strategy.desc}`);
+                                    successStrategy = strategy.name;
+                                    break; // Sortir de la boucle, on a trouvé la bonne stratégie
                                 } catch (strategyError) {
-                                    console.log(`  - ❌ Exception: ${strategyError.message}`);
+                                    const errorMsg = strategyError.message || strategyError.toString();
+                                    console.log(`  - ❌ Échec: ${errorMsg.substring(0, 150)}`);
                                     lastError = strategyError;
                                     continue; // Essayer la stratégie suivante
-                                }
-                            }
-                            
-                            // Si aucune stratégie n'a fonctionné, essayer rest.patch comme dernier recours
-                            if (!successStrategy) {
-                                console.log(`🧪 DERNIER RECOURS: Essayer rest.patch de discord.js`);
-                                try {
-                                    // Construire le payload pour rest.patch
-                                    // discord.js REST gère automatiquement les fichiers AttachmentBuilder
-                                    const restPayload = {
-                                        embeds: options.embeds,
-                                        components: options.components,
-                                        content: options.content || 'Shader animation' // Toujours inclure un content
-                                    };
-                                    
-                                    // Convertir les embeds en JSON si nécessaire
-                                    if (restPayload.embeds) {
-                                        restPayload.embeds = restPayload.embeds.map(embed => {
-                                            if (embed && typeof embed.toJSON === 'function') {
-                                                return embed.toJSON();
-                                            }
-                                            return embed;
-                                        }).filter(embed => embed !== null && embed !== undefined);
-                                    }
-                                    
-                                    console.log(`🔍 rest.patch payload:`, {
-                                        hasEmbeds: !!restPayload.embeds && restPayload.embeds.length > 0,
-                                        hasContent: !!restPayload.content,
-                                        contentLength: restPayload.content?.length || 0,
-                                        filesCount: options.files?.length || 0
-                                    });
-                                    
-                                    // discord.js REST gère automatiquement les AttachmentBuilder
-                                    await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
-                                        body: restPayload,
-                                        files: options.files || []
-                                    });
-                                    
-                                    console.log(`✅ ✅ ✅ SUCCÈS avec rest.patch! ✅ ✅ ✅`);
-                                    successStrategy = 'rest.patch';
-                                } catch (restError) {
-                                    console.error(`❌ rest.patch a aussi échoué: ${restError.message}`);
-                                    console.error(`❌ rest.patch error stack:`, restError.stack);
-                                    // Re-throw l'erreur originale ou la dernière erreur
-                                    throw lastError || restError;
                                 }
                             }
                             
                             if (!successStrategy) {
                                 throw lastError || new Error('Toutes les stratégies ont échoué');
                             }
+                            
+                            return; // Succès, sortir de la fonction
                         } else {
                             // Pas de fichiers, envoi JSON classique
                             // Ici on peut supprimer content si embeds présents (Discord accepte embeds seuls sans fichiers)
@@ -5654,42 +5374,27 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                         async respond(options) {
                             autocompleteResponse = {
                                 type: 8, // APPLICATION_COMMAND_AUTOCOMPLETE_RESULT
-                                data: {
-                                    choices: options
-                                }
+                                data: { choices: options.choices || [] }
                             };
                         }
                     };
                     
-                    await command.autocomplete(mockInteraction);
-                    
-                    // Envoyer la réponse via l'endpoint Express
-                    if (autocompleteResponse) {
-                        // La réponse sera envoyée par l'endpoint Express
-                        return autocompleteResponse;
-                    }
-                } else {
-                    // Pas de commande ou pas d'autocomplete, répondre avec un tableau vide
-                    return {
-                        type: 8,
-                        data: {
-                            choices: []
+                    try {
+                        await command.autocomplete(mockInteraction);
+                        if (autocompleteResponse) {
+                            return autocompleteResponse;
                         }
-                    };
+                    } catch (error) {
+                        console.error(`❌ Erreur lors de l'autocomplete HTTP ${commandName}:`, error);
+                    }
                 }
+                
+                // Réponse par défaut si aucune commande ou autocomplete
+                return { type: 8, data: { choices: [] } };
             }
         } catch (error) {
-            console.error(`❌ Erreur traitement interaction HTTP:`, error);
-            try {
-                const applicationId = body.application_id || this.client?.user?.id || process.env.DISCORD_CLIENT_ID;
-                await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
-                    body: {
-                        content: '❌ Une erreur s\'est produite lors de l\'exécution de cette commande.'
-                    }
-                });
-            } catch (e) {
-                console.error('❌ Erreur envoi message d\'erreur:', e);
-            }
+            console.error('❌ Erreur dans handleInteractionFromHTTP:', error);
+            throw error;
         }
     }
 
@@ -5730,838 +5435,300 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         
         // Middleware pour tracker les requêtes
         app.use(gracefulShutdown.middleware());
-
+        
         // Headers CORS pour Discord et API web (avant tout autre middleware)
         app.use((req, res, next) => {
-            res.setHeader('Access-Control-Allow-Origin', '*');
-            res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET, DELETE');
+            const allowedOrigins = [
+                'https://glsl-discord-bot.vercel.app',
+                'https://glsl-discord-bot.onrender.com',
+                'http://localhost:3000',
+                'http://localhost:8080',
+                'http://127.0.0.1:3000',
+                'http://127.0.0.1:8080'
+            ];
+            const origin = req.headers.origin;
+            if (origin && allowedOrigins.includes(origin)) {
+                res.setHeader('Access-Control-Allow-Origin', origin);
+            }
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
             res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Signature-Ed25519, X-Signature-Timestamp');
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
+            if (req.method === 'OPTIONS') {
+                return res.sendStatus(200);
+            }
             next();
         });
-
-        // Endpoint de test pour vérifier que le serveur répond
-        app.get('/test-discord', (req, res) => {
-            res.status(200).json({
-                message: 'Endpoint de test Discord',
-                timestamp: new Date().toISOString(),
-                endpoint: '/discord',
-                method: 'POST',
-                expectedBody: { type: 1 }
-            });
-        });
-
-        // Handler OPTIONS pour preflight CORS (avant le body parser)
-        app.options('/discord', (req, res) => {
-            console.log('🔗 Requête OPTIONS reçue sur /discord');
-            res.status(200).end();
-        });
-
-        // Middleware personnalisé pour capturer le body brut pour /discord
-        // Ce middleware doit être AVANT express.json() pour capturer le body brut
-        app.use('/discord', (req, res, next) => {
-            if (req.method === 'POST') {
-                const chunks = [];
-                req.on('data', (chunk) => {
-                    chunks.push(chunk);
-                });
-                req.on('end', () => {
-                    // Stocker le body brut comme Buffer
-                    req.rawBody = Buffer.concat(chunks);
-                    // Parser le JSON pour accéder au contenu
-                    try {
-                        req.body = JSON.parse(req.rawBody.toString('utf-8'));
-                    } catch (e) {
-                        req.body = {};
-                    }
-                    next();
-                });
-            } else {
-                next();
-            }
-        });
         
-        // Middleware pour parser le JSON pour les autres routes (exclure /discord)
-        app.use((req, res, next) => {
-            // Ne pas parser le JSON pour /discord car on l'a déjà fait dans le middleware précédent
-            if (req.path === '/discord') {
-                return next();
-            }
-            express.json()(req, res, next);
-        });
-
-        // Endpoint Discord principal pour les interactions
+        app.use(express.json({ verify: this.verifyDiscordRequest.bind(this) }));
+        
+        // Route pour les interactions Discord
         app.post('/discord', async (req, res) => {
-            // Log immédiat pour voir toutes les requêtes
-            console.log('📥 Requête POST reçue sur /discord à', new Date().toISOString());
-            console.log('📥 Headers:', {
-                'content-type': req.headers['content-type'],
-                'x-signature-ed25519': req.headers['x-signature-ed25519'] ? 'présent' : 'absent',
-                'x-signature-timestamp': req.headers['x-signature-timestamp'] ? 'présent' : 'absent',
-                'user-agent': req.headers['user-agent']
-            });
+            const { body } = req;
+            console.log('🌐 Requête Discord reçue:', body.type);
             
-            try {
-                // Récupérer le body brut (Buffer)
-                // Utiliser req.rawBody si disponible (depuis le middleware verify), sinon req.body
-                let rawBody = req.rawBody;
+            // Type 1: PING
+            if (body.type === 1) {
+                console.log('➡️ Réponse PONG');
+                return res.send({ type: 1 });
+            }
+            // Type 2: APPLICATION_COMMAND
+            else if (body.type === 2) {
+                const commandName = body.data?.name;
+                const userId = body.member?.user?.id || body.user?.id;
+                const userName = body.member?.user?.username || body.user?.username;
+                const commandLockKey = `command_lock:${userId}:${commandName}`;
                 
-                // Si rawBody n'est pas disponible, essayer req.body
-                if (!rawBody) {
-                    if (Buffer.isBuffer(req.body)) {
-                        rawBody = req.body;
-                    } else if (typeof req.body === 'string') {
-                        rawBody = Buffer.from(req.body, 'utf-8');
-                    } else {
-                        // Dernier recours : essayer de reconstruire depuis le JSON parsé
-                        console.log('⚠️ Body brut non trouvé, tentative de reconstruction');
-                        rawBody = Buffer.from(JSON.stringify(req.body), 'utf-8');
-                    }
+                // Vérifier si la commande est déjà en cours pour cet utilisateur
+                if (this.activeCommands.has(commandLockKey)) {
+                    console.warn(`⚠️ Commande ${commandName} déjà en cours pour l'utilisateur ${userName}. Ignoré.`);
+                    return res.status(200).send({
+                        type: 4, // CHANNEL_MESSAGE_WITH_SOURCE
+                        data: {
+                            content: '⏳ Votre précédente commande est toujours en cours. Veuillez patienter.',
+                            flags: 64 // EPHEMERAL
+                        }
+                    });
                 }
                 
-                // S'assurer que rawBody est un Buffer
-                if (!Buffer.isBuffer(rawBody)) {
-                    rawBody = Buffer.from(String(rawBody), 'utf-8');
-                }
+                // Acquérir un verrou pour cette commande et cet utilisateur
+                this.activeCommands.add(commandLockKey);
+                console.log(`🔒 Verrou acquis pour ${commandLockKey}`);
                 
-                const bodyString = rawBody.toString('utf-8');
-                
-                // Parser le JSON pour accéder au type
-                let body = {};
-                if (bodyString) {
-                    try {
-                        body = JSON.parse(bodyString);
-                    } catch (e) {
-                        console.log('⚠️ Erreur parsing JSON:', e.message, 'Body:', bodyString.substring(0, 100));
-                    }
-                }
-                
-                // Log pour debug
-                console.log('🔗 Requête Discord reçue:', {
-                    method: req.method,
-                    url: req.url,
-                    hasSignature: !!req.headers['x-signature-ed25519'],
-                    hasTimestamp: !!req.headers['x-signature-timestamp'],
-                    contentType: req.headers['content-type'],
-                    bodyType: body.type,
-                    bodyLength: rawBody.length
+                // Répondre immédiatement à Discord pour éviter le timeout (type 5)
+                res.status(200).send({
+                    type: 5 // DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE
                 });
-
-                // Vérifier la signature Discord pour toutes les requêtes
-                const signature = req.headers['x-signature-ed25519'];
-                const timestamp = req.headers['x-signature-timestamp'];
                 
-                let isValid = false;
-                if (signature && timestamp && rawBody && rawBody.length > 0) {
-                    isValid = verifyDiscordSignatureWithRawBody(signature, timestamp, rawBody);
-                    if (isValid) {
-                        console.log('✅ Signature Discord valide');
-                    } else {
-                        console.log('❌ Signature Discord invalide');
-                    }
-                } else {
-                    console.log('⚠️ Headers de signature manquants ou body vide:', {
-                        hasSignature: !!signature,
-                        hasTimestamp: !!timestamp,
-                        hasRawBody: !!rawBody,
-                        rawBodyLength: rawBody?.length || 0
+                // Exécuter la commande en arrière-plan
+                this.handleInteractionFromHTTP(body, req, res)
+                    .then(() => console.log(`✅ Traitement en arrière-plan de ${commandName} terminé.`))
+                    .catch(err => console.error(`❌ Erreur traitement en arrière-plan de ${commandName}:`, err))
+                    .finally(() => {
+                        // Le verrou est libéré dans handleInteractionFromHTTP.
+                        // Ici, on s'assure qu'il est libéré même si handleInteractionFromHTTP échoue avant le finally.
+                        // Mais le finally de handleInteractionFromHTTP est plus approprié pour le délai.
                     });
-                }
+            }
+            // Type 4: APPLICATION_COMMAND_AUTOCOMPLETE
+            else if (body.type === 4) {
+                const commandName = body.data?.name;
+                console.log(`🔍 Autocomplete HTTP reçu: ${commandName}`);
                 
-                // Pour TOUTES les interactions (y compris PING), la signature DOIT être valide
-                // Discord ne validera pas l'endpoint si la signature est invalide
-                if (!isValid) {
-                    console.log('❌ Signature invalide, rejet de la requête');
-                    return res.status(401).json({ error: 'Invalid signature' });
-                }
+                const command = this.commands.get(commandName);
                 
-                // Si c'est un PING (type 1), répondre avec PONG
-                if (body.type === 1) {
-                    console.log('✅ PING reçu avec signature valide, réponse PONG');
-                    res.status(200).setHeader('Content-Type', 'application/json');
-                    return res.json({ type: 1 });
-                }
-                
-                // Pour les autres types d'interactions, créer une interaction et la traiter
-                // Répondre immédiatement avec un type 5 (DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE)
-                // pour éviter le timeout, puis traiter l'interaction de manière asynchrone
-                if (body.type === 2) { // APPLICATION_COMMAND
-                    console.log('✅ Interaction type 2 (APPLICATION_COMMAND) reçue');
-                    console.log('📋 Détails interaction:', {
-                        commandName: body.data?.name,
-                        userId: body.member?.user?.id || body.user?.id,
-                        guildId: body.guild_id,
-                        channelId: body.channel_id
-                    });
+                if (command && command.autocomplete) {
+                    let autocompleteResponse = null;
                     
-                    // Répondre immédiatement avec DEFERRED pour éviter le timeout
-                    res.status(200).setHeader('Content-Type', 'application/json');
-                    res.json({ type: 5 }); // DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE
-                    console.log('✅ Réponse DEFERRED envoyée, traitement asynchrone...');
+                    const mockInteraction = {
+                        commandName: commandName,
+                        options: {
+                            getFocused: () => {
+                                const focused = body.data?.options?.find(opt => opt.focused);
+                                return { value: focused?.value || '' };
+                            }
+                        },
+                        isAutocomplete: () => true,
+                        async respond(options) {
+                            autocompleteResponse = {
+                                type: 8, // APPLICATION_COMMAND_AUTOCOMPLETE_RESULT
+                                data: { choices: options.choices || [] }
+                            };
+                        }
+                    };
                     
-                    // Traiter l'interaction de manière asynchrone
-                    // Créer une interaction mock pour utiliser le gestionnaire d'événements existant
-                    this.handleInteractionFromHTTP(body, req, res).catch(error => {
-                        console.error('❌ Erreur traitement interaction HTTP:', error);
-                        console.error('❌ Stack:', error.stack);
-                    });
-                    
-                    return;
-                }
-                
-                // Si c'est un autocomplete (type 4), répondre immédiatement
-                if (body.type === 4) {
-                    console.log('✅ Interaction type 4 (AUTOCOMPLETE) reçue');
-                    
-                    // Traiter l'autocomplete de manière synchrone
                     try {
-                        const response = await this.handleInteractionFromHTTP(body, req, res);
-                        if (response) {
-                            res.status(200).json(response);
-                        } else {
-                            res.status(200).json({ type: 8, data: { choices: [] } });
+                        await command.autocomplete(mockInteraction);
+                        if (autocompleteResponse) {
+                            return res.status(200).json(autocompleteResponse);
                         }
                     } catch (error) {
-                        console.error('❌ Erreur traitement autocomplete HTTP:', error);
-                        res.status(200).json({ type: 8, data: { choices: [] } });
+                        console.error(`❌ Erreur lors de l'autocomplete HTTP ${commandName}:`, error);
                     }
-                    return;
                 }
                 
-                // Pour les autres types
-                console.log('✅ Interaction type', body.type, 'reçue');
-                res.status(200).json({ type: 1 });
-                
-            } catch (error) {
-                console.error('❌ Erreur endpoint Discord:', error);
-                // En cas d'erreur, répondre avec type: 1 pour permettre la validation
-                res.status(200).json({ type: 1 });
+                // Réponse par défaut si aucune commande ou autocomplete
+                return res.status(200).json({ type: 8, data: { choices: [] } });
+            }
+            // Autres types d'interaction
+            else {
+                console.log('➡️ Interaction non gérée:', body.type);
+                return res.status(400).send('Interaction non gérée');
             }
         });
-
-        // Endpoint Terms of Service
-        app.get('/terms', (req, res) => {
-            res.status(200).json({
-                title: 'Conditions d\'utilisation - ShaderBot',
-                version: '1.0.0',
-                lastUpdated: '2024-01-04',
-                terms: [
-                    'Ce bot est fourni "tel quel" sans garantie',
-                    'L\'utilisation est à vos propres risques',
-                    'Respectez les règles de votre serveur Discord',
-                    'Ne soumettez pas de contenu malveillant',
-                    'Le bot peut être arrêté à tout moment'
-                ],
-                contact: 'Via le serveur Discord ou GitHub',
-                repository: 'https://github.com/PlanesZwalker/glsl-discord-bot',
-                timestamp: new Date().toISOString()
-            });
-        });
-
-        // Endpoint Privacy Policy
-        app.get('/privacy', (req, res) => {
-            res.status(200).json({
-                title: 'Politique de confidentialité - ShaderBot',
-                version: '1.0.0',
-                lastUpdated: '2024-01-04',
-                dataCollected: [
-                    'Code des shaders soumis',
-                    'ID utilisateur Discord',
-                    'Nom d\'utilisateur Discord',
-                    'Statistiques d\'utilisation'
-                ],
-                dataUsage: [
-                    'Compilation et exécution des shaders',
-                    'Stockage en base de données',
-                    'Amélioration du service',
-                    'Statistiques anonymisées'
-                ],
-                dataRetention: 'Jusqu\'à suppression par l\'utilisateur',
-                dataSharing: 'Aucun partage avec des tiers',
-                contact: 'Via le serveur Discord ou GitHub',
-                repository: 'https://github.com/PlanesZwalker/glsl-discord-bot',
-                timestamp: new Date().toISOString()
-            });
-        });
-
-        // Endpoint Linked Roles Verification
-        app.get('/verify', (req, res) => {
-            res.status(200).json({
-                title: 'Vérification des rôles - ShaderBot',
-                description: 'Système de vérification pour les rôles liés',
-                status: 'active',
-                verificationMethod: 'Discord OAuth2',
-                requirements: [
-                    'Être membre du serveur',
-                    'Avoir un compte Discord valide',
-                    'Accepter les conditions d\'utilisation'
-                ],
-                repository: 'https://github.com/PlanesZwalker/glsl-discord-bot',
-                timestamp: new Date().toISOString()
-            });
-        });
-
-        // Endpoint racine pour réveiller le serveur (utilisé par Render.com)
-        app.get('/', (req, res) => {
-            res.status(200).json({
-                status: 'awake',
-                message: 'ShaderBot is running',
-                timestamp: new Date().toISOString(),
-                bot: this.client?.user ? this.client.user.tag : 'Initializing...',
-                endpoints: {
-                    health: '/health',
-                    wake: '/wake',
-                    ping: '/ping'
-                },
-                note: 'Pour réveiller le serveur, utilisez /wake ou /health. Le premier réveil peut prendre jusqu\'à 1 minute (plan gratuit Render.com).'
-            });
-        });
-
-        // Endpoint Health Check (pour Render et monitoring)
-        // Metrics endpoint (JSON)
-        app.get('/metrics', (req, res) => {
-            const { getMetrics } = require('./src/metrics');
-            const { getBrowserPool } = require('./src/browser-pool');
-            const { getShaderCache } = require('./src/shader-cache');
-            
-            const metrics = getMetrics();
-            const browserPool = getBrowserPool();
-            const shaderCache = getShaderCache();
-            
-            res.json({
-                ...metrics.getStats(),
-                browserPool: browserPool.getStats(),
-                shaderCache: shaderCache.getStats(),
-                uptime: process.uptime(),
-                memory: process.memoryUsage()
-            });
-        });
-
-        // Prometheus metrics endpoint (format Prometheus)
-        app.get('/metrics/prometheus', (req, res) => {
-            const { getPrometheusMetrics } = require('./src/utils/prometheus');
-            const { getMetrics } = require('./src/metrics');
-            const { getBrowserPool } = require('./src/browser-pool');
-            const { getShaderCache } = require('./src/shader-cache');
-            const { getShaderQueue } = require('./src/shader-queue');
-            
-            const promMetrics = getPrometheusMetrics();
-            const metrics = getMetrics();
-            const browserPool = getBrowserPool();
-            const shaderCache = getShaderCache();
-            const shaderQueue = getShaderQueue();
-            
-            // Mettre à jour les métriques Prometheus
-            const poolStats = browserPool.getStats();
-            promMetrics.updateBrowserPool(poolStats.poolSize, poolStats.activeInstances);
-            promMetrics.updateQueueLength(shaderQueue.getStats().queueLength);
-            
-            res.setHeader('Content-Type', 'text/plain; version=0.0.4');
-            res.send(promMetrics.getPrometheusFormat());
-        });
-
-        // Health Check Avancé
-        app.get('/health', async (req, res) => {
+        
+        // API pour le tableau de bord web
+        app.get('/api/stats', async (req, res) => {
             try {
-                // Quick health check with timeout to prevent 502 errors
-                const timeout = setTimeout(() => {
-                    // If health check takes too long, return basic response
-                    res.status(200).json({
-                        status: 'healthy',
-                        timestamp: new Date().toISOString(),
-                        uptime: process.uptime(),
-                        note: 'Health check timeout - service is running'
-                    });
-                }, 5000); // 5 second timeout
-
-            const { checkHealth } = require('./src/utils/healthCheck');
-            const health = await checkHealth({
-                database: this.database,
-                browserPool: require('./src/browser-pool').getBrowserPool(),
-                cacheManager: require('./src/utils/cacheManager').getCacheManager(),
-                bot: this
-            });
-
-                clearTimeout(timeout);
-            const statusCode = health.status === 'healthy' ? 200 : 503;
-            res.status(statusCode).json(health);
+                const stats = await this.database.getBotStats();
+                res.json(stats);
             } catch (error) {
-                // If health check fails, still return 200 to prevent Render from thinking service is down
-                console.error('Health check error:', error);
-                res.status(200).json({
-                    status: 'degraded',
-                    timestamp: new Date().toISOString(),
-                    uptime: process.uptime(),
-                    error: error.message
-                });
+                console.error('❌ Erreur API /api/stats:', error);
+                res.status(500).json({ error: 'Erreur interne du serveur' });
             }
-        });
-
-        // Routes Admin
-        const adminRoutes = require('./routes/admin');
-        app.use('/admin', adminRoutes);
-
-        // Stocker les dépendances pour les routes admin
-        app.locals.database = this.database;
-        app.locals.metrics = require('./src/metrics').getMetrics();
-        app.locals.cacheManager = require('./src/utils/cacheManager').getCacheManager();
-        try {
-            app.locals.telemetry = require('./src/utils/telemetry').getTelemetry();
-        } catch (err) {
-            // Telemetry non disponible
-        }
-        
-        // Endpoint pour réveiller le serveur manuellement (si nécessaire)
-        // Note: Le bot se réveille automatiquement lors d'une commande Discord
-        // Pas besoin de ping automatique - cela consommerait toutes les heures Render.com (750h/mois max)
-        // Le service se met en veille après 15 minutes d'inactivité sur le plan gratuit
-        app.get('/wake', (req, res) => {
-            res.status(200).json({
-                status: 'awake',
-                message: 'Serveur réveillé et prêt',
-                timestamp: new Date().toISOString(),
-                bot: this.client?.user ? this.client.user.tag : 'Non connecté',
-                uptime: process.uptime(),
-                note: 'Le bot se réveille automatiquement lors d\'une commande Discord. Le premier réveil peut prendre jusqu\'à 1 minute (plan gratuit Render.com).'
-            });
         });
         
-        app.get('/ping', (req, res) => {
-            res.status(200).json({
-                status: 'pong',
-                timestamp: new Date().toISOString(),
-                uptime: process.uptime()
-            });
-        });
-
-        // Endpoint Bot Info
-        app.get('/bot', (req, res) => {
-            if (!this.client?.user) {
-                return res.status(503).json({
-                    status: 'offline',
-                    message: 'Bot is not connected yet'
-                });
-            }
-
-            res.status(200).json({
-                name: this.client.user.username,
-                discriminator: this.client.user.discriminator,
-                id: this.client.user.id,
-                tag: this.client.user.tag,
-                avatar: this.client.user.displayAvatarURL(),
-                createdAt: this.client.user.createdAt.toISOString(),
-                status: this.client.user.presence?.status || 'unknown',
-                commands: Array.from(this.commands.keys()),
-                timestamp: new Date().toISOString()
-            });
-        });
-
-        // API endpoints for web dashboard
-        // Middleware to verify API key
-        const verifyApiKey = (req, res, next) => {
-            const apiKey = req.headers.authorization?.replace('Bearer ', '');
-            const expectedKey = process.env.BOT_API_KEY;
-            
-            if (!expectedKey || apiKey === expectedKey) {
-                next();
-            } else {
-                res.status(401).json({ error: 'Unauthorized' });
-            }
-        };
-
-        // Get user shaders
-        app.get('/api/shaders', verifyApiKey, async (req, res) => {
+        app.get('/api/shaders', async (req, res) => {
             try {
                 const userId = req.query.userId;
                 if (!userId) {
-                    return res.status(400).json({ error: 'userId is required' });
+                    return res.status(400).json({ error: 'User ID is required' });
                 }
-
-                const shaders = await this.database.getShadersByUserId(userId);
+                const shaders = await this.database.getUserShaders(userId);
                 res.json(shaders);
             } catch (error) {
-                console.error('Error fetching shaders:', error);
-                res.status(500).json({ error: 'Internal server error' });
+                console.error('❌ Erreur API /api/shaders:', error);
+                res.status(500).json({ error: 'Erreur interne du serveur' });
             }
         });
-
-        // Get shader GIF
-        app.get('/api/shaders/:id/gif', verifyApiKey, async (req, res) => {
+        
+        app.get('/api/shaders/:id', async (req, res) => {
             try {
-                const shaderId = parseInt(req.params.id);
-                const userId = req.query.userId;
-
-                const shader = await this.database.getShaderById(shaderId);
-                if (!shader || (userId && shader.user_id !== userId)) {
-                    return res.status(404).json({ error: 'Shader not found' });
+                const shaderId = req.params.id;
+                const shader = await this.database.getShader(shaderId);
+                if (shader) {
+                    res.json(shader);
+                } else {
+                    res.status(404).json({ error: 'Shader non trouvé' });
                 }
-
-                if (!shader.gif_path || !fs.existsSync(shader.gif_path)) {
-                    return res.status(404).json({ error: 'GIF not found' });
-                }
-
-                res.setHeader('Content-Type', 'image/gif');
-                res.setHeader('Cache-Control', 'public, max-age=31536000');
-                res.sendFile(path.resolve(shader.gif_path));
             } catch (error) {
-                console.error('Error serving GIF:', error);
-                res.status(500).json({ error: 'Internal server error' });
+                console.error('❌ Erreur API /api/shaders/:id:', error);
+                res.status(500).json({ error: 'Erreur interne du serveur' });
             }
         });
-
-        // Get shader image (first frame)
-        app.get('/api/shaders/:id/image', verifyApiKey, async (req, res) => {
+        
+        app.delete('/api/shaders/:id', async (req, res) => {
             try {
-                const shaderId = parseInt(req.params.id);
-                const userId = req.query.userId;
-
-                const shader = await this.database.getShaderById(shaderId);
-                if (!shader || (userId && shader.user_id !== userId)) {
-                    return res.status(404).json({ error: 'Shader not found' });
-                }
-
-                // Try to get first frame from frame directory
-                if (shader.image_path && fs.existsSync(shader.image_path)) {
-                    const stats = fs.statSync(shader.image_path);
-                    if (stats.isDirectory()) {
-                        const files = fs.readdirSync(shader.image_path)
-                            .filter(f => f.endsWith('.png'))
-                            .sort();
-                        
-                        if (files.length > 0) {
-                            const firstFrame = path.join(shader.image_path, files[0]);
-                            res.setHeader('Content-Type', 'image/png');
-                            res.setHeader('Cache-Control', 'public, max-age=31536000');
-                            res.sendFile(path.resolve(firstFrame));
-                            return;
-                        }
-                    }
-                }
-
-                res.status(404).json({ error: 'Image not found' });
-            } catch (error) {
-                console.error('Error serving image:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        });
-
-        // Get shader code by name (for preset shaders)
-        app.get('/api/shaders/code/:name', verifyApiKey, async (req, res) => {
-            try {
-                const shaderName = req.params.name.toLowerCase();
-                const shaderCode = this.getShaderCodeByName(shaderName);
-                
-                if (!shaderCode) {
-                    return res.status(404).json({ error: 'Shader not found' });
-                }
-
-                res.json({ 
-                    name: shaderName,
-                    code: shaderCode 
-                });
-            } catch (error) {
-                console.error('Error fetching shader code:', error);
-                res.status(500).json({ error: 'Internal server error' });
-            }
-        });
-
-        // Compile custom shader
-        app.post('/api/shaders/compile', verifyApiKey, async (req, res) => {
-            try {
-                const { code, name, textures, userId } = req.body;
-
-                if (!code || typeof code !== 'string') {
-                    return res.status(400).json({ error: 'Shader code is required' });
-                }
-
+                const shaderId = req.params.id;
+                const userId = req.query.userId; // Assurez-vous que l'utilisateur est autorisé à supprimer
                 if (!userId) {
-                    return res.status(400).json({ error: 'userId is required' });
+                    return res.status(401).json({ error: 'Unauthorized' });
                 }
-
-                // Validate shader
-                const { ShaderValidator } = require('./src/utils/shaderValidator');
-                const validation = ShaderValidator.validate(code, 'glsl');
-                if (!validation.valid) {
-                    return res.status(400).json({ 
-                        error: 'Validation failed',
-                        errors: validation.errors 
-                    });
+                const success = await this.database.deleteShader(shaderId, userId);
+                if (success) {
+                    res.status(200).json({ message: 'Shader supprimé avec succès' });
+                } else {
+                    res.status(404).json({ error: 'Shader non trouvé ou non autorisé' });
                 }
-
-                // Use sanitized code if available
-                const codeToCompile = validation.sanitized || code;
-
-                // Prepare textures array
-                const textureUrls = [];
-                if (textures && Array.isArray(textures)) {
-                    textureUrls.push(...textures.filter(t => t && typeof t === 'string'));
-                }
-
-                // Compile shader
-                const result = await this.compiler.compileShader(codeToCompile, {
-                    textures: textureUrls.length > 0 ? textureUrls : null,
-                    userId: userId
-                });
-
-                if (!result.success) {
-                    return res.status(500).json({ 
-                        error: 'Compilation failed',
-                        message: result.error 
-                    });
-                }
-
-                // Save to database
-                const shaderId = await this.database.saveShader({
-                    code: code,
-                    userId: userId,
-                    userName: 'Web User',
-                    imagePath: result.frameDirectory,
-                    gifPath: result.gifPath,
-                    name: name || null
-                });
-
-                await this.database.updateUserStats(userId, 'Web User');
-
-                res.json({
-                    success: true,
-                    shaderId: shaderId,
-                    gifPath: result.gifPath,
-                    frameDirectory: result.frameDirectory
-                });
             } catch (error) {
-                console.error('Error compiling shader:', error);
-                res.status(500).json({ error: 'Internal server error', message: error.message });
+                console.error('❌ Erreur API DELETE /api/shaders/:id:', error);
+                res.status(500).json({ error: 'Erreur interne du serveur' });
             }
         });
-
-        // Generate shader from parameters
-        app.post('/api/shaders/generate', verifyApiKey, async (req, res) => {
+        
+        app.post('/api/shaders/compile', async (req, res) => {
             try {
-                const { shape, color, animation, speed, size, userId } = req.body;
-
-                if (!shape || !color || !animation) {
-                    return res.status(400).json({ error: 'Shape, color, and animation are required' });
+                const { code, name, userId } = req.body;
+                if (!code || !userId) {
+                    return res.status(400).json({ error: 'Code and userId are required' });
                 }
-
+                const result = await this.compiler.compileShader(code, { userId, name });
+                if (result.success) {
+                    // Sauvegarder le shader dans la base de données
+                    const shaderId = await this.database.saveShader({
+                        code,
+                        user_id: userId,
+                        user_name: 'Dashboard User', // Ou récupérer le nom de l'utilisateur
+                        image_path: result.frameDirectory,
+                        gif_path: result.gifPath,
+                        name: name || `Shader #${Date.now()}`
+                    });
+                    res.json({ success: true, shaderId, gifUrl: result.gifPath, imageUrl: result.frameDirectory });
+                } else {
+                    res.status(400).json({ success: false, error: result.error });
+                }
+            } catch (error) {
+                console.error('❌ Erreur API /api/shaders/compile:', error);
+                res.status(500).json({ error: 'Erreur interne du serveur' });
+            }
+        });
+        
+        app.post('/api/shaders/generate', async (req, res) => {
+            try {
+                const { shape, color, animation, speed, size, userId, name } = req.body;
                 if (!userId) {
-                    return res.status(400).json({ error: 'userId is required' });
+                    return res.status(400).json({ error: 'User ID is required' });
                 }
-
-                // Generate GLSL code
                 const shaderCode = this.generateShaderFromParams({
                     forme: shape,
                     couleur: color,
                     animation: animation,
-                    vitesse: speed || 'normal',
-                    taille: size || 5
+                    vitesse: speed,
+                    taille: size
                 });
-
-                if (!shaderCode) {
-                    return res.status(400).json({ error: 'Failed to generate shader code' });
-                }
-
-                // Validate shader
-                const validation = await this.compiler.validateShader(shaderCode);
-                if (!validation.valid) {
-                    return res.status(400).json({ 
-                        error: 'Validation failed',
-                        errors: validation.errors 
+                const result = await this.compiler.compileShader(shaderCode, { userId, name });
+                if (result.success) {
+                    const shaderId = await this.database.saveShader({
+                        code: shaderCode,
+                        user_id: userId,
+                        user_name: 'Dashboard User',
+                        image_path: result.frameDirectory,
+                        gif_path: result.gifPath,
+                        name: name || `Generated Shader #${Date.now()}`
                     });
+                    res.json({ success: true, shaderId, gifUrl: result.gifPath, imageUrl: result.frameDirectory });
+                } else {
+                    res.status(400).json({ success: false, error: result.error });
                 }
-
-                // Compile shader
-                const result = await this.compiler.compileShader(shaderCode, {
-                    userId: userId
-                });
-
-                if (!result.success) {
-                    return res.status(500).json({ 
-                        error: 'Compilation failed',
-                        message: result.error 
-                    });
-                }
-
-                // Save to database
-                const shaderId = await this.database.saveShader({
-                    code: shaderCode,
-                    userId: userId,
-                    userName: 'Web User',
-                    imagePath: result.frameDirectory,
-                    gifPath: result.gifPath,
-                    name: `Generated: ${shape} ${color} ${animation}`
-                });
-
-                await this.database.updateUserStats(userId, 'Web User');
-
-                res.json({
-                    success: true,
-                    shaderId: shaderId,
-                    gifPath: result.gifPath,
-                    frameDirectory: result.frameDirectory
-                });
             } catch (error) {
-                console.error('Error generating shader:', error);
-                res.status(500).json({ error: 'Internal server error', message: error.message });
+                console.error('❌ Erreur API /api/shaders/generate:', error);
+                res.status(500).json({ error: 'Erreur interne du serveur' });
             }
         });
-
-        // Compile preset shader
-        app.post('/api/shaders/preset', verifyApiKey, async (req, res) => {
+        
+        app.post('/api/shaders/preset', async (req, res) => {
             try {
-                const { preset, userId } = req.body;
-
-                if (!preset || typeof preset !== 'string') {
-                    return res.status(400).json({ error: 'Preset name is required' });
+                const { presetName, userId, name } = req.body;
+                if (!presetName || !userId) {
+                    return res.status(400).json({ error: 'Preset name and userId are required' });
                 }
-
-                if (!userId) {
-                    return res.status(400).json({ error: 'userId is required' });
+                const preset = this.getPresetShader(presetName);
+                if (!preset) {
+                    return res.status(404).json({ error: 'Preset non trouvé' });
                 }
-
-                // Get shader code
-                const shaderCode = this.getShaderCodeByName(preset.toLowerCase());
-                
-                if (!shaderCode) {
-                    return res.status(404).json({ error: 'Preset shader not found' });
-                }
-
-                // Validate shader
-                const { ShaderValidator } = require('./src/utils/shaderValidator');
-                const validation = ShaderValidator.validate(shaderCode, 'glsl');
-                if (!validation.valid) {
-                    return res.status(400).json({ 
-                        error: 'Validation failed',
-                        errors: validation.errors 
+                const result = await this.compiler.compileShader(preset.code, { userId, name });
+                if (result.success) {
+                    const shaderId = await this.database.saveShader({
+                        code: preset.code,
+                        user_id: userId,
+                        user_name: 'Dashboard User',
+                        image_path: result.frameDirectory,
+                        gif_path: result.gifPath,
+                        name: name || preset.name
                     });
+                    res.json({ success: true, shaderId, gifUrl: result.gifPath, imageUrl: result.frameDirectory });
+                } else {
+                    res.status(400).json({ success: false, error: result.error });
                 }
-
-                // Compile shader
-                const result = await this.compiler.compileShader(shaderCode, {
-                    presetName: preset,
-                    userId: userId
-                });
-
-                if (!result.success) {
-                    return res.status(500).json({ 
-                        error: 'Compilation failed',
-                        message: result.error 
-                    });
-                }
-
-                // Save to database
-                const shaderId = await this.database.saveShader({
-                    code: shaderCode,
-                    userId: userId,
-                    userName: 'Web User',
-                    imagePath: result.frameDirectory,
-                    gifPath: result.gifPath,
-                    name: preset
-                });
-
-                await this.database.updateUserStats(userId, 'Web User');
-
-                res.json({
-                    success: true,
-                    shaderId: shaderId,
-                    gifPath: result.gifPath,
-                    frameDirectory: result.frameDirectory
-                });
             } catch (error) {
-                console.error('Error compiling preset shader:', error);
-                res.status(500).json({ error: 'Internal server error', message: error.message });
+                console.error('❌ Erreur API /api/shaders/preset:', error);
+                res.status(500).json({ error: 'Erreur interne du serveur' });
             }
         });
-
-        // OPTIONS pour CORS preflight
-        app.options('*', (req, res) => {
-            res.status(200).end();
+        
+        // Servir les fichiers GIF et images
+        app.get('/shaders/assets/:filename', (req, res) => {
+            const filename = req.params.filename;
+            const filePath = path.join(process.cwd(), 'temp', filename);
+            if (fs.existsSync(filePath)) {
+                res.sendFile(filePath);
+            } else {
+                res.status(404).send('Fichier non trouvé');
+            }
         });
-
-
+        
         // Démarrer le serveur Express
-        // WebSocket pour progression en temps réel (optionnel, nécessite socket.io)
-        // Note: Pour activer, installer socket.io: npm install socket.io
-        try {
-            const { Server } = require('socket.io');
-            const http = require('http');
-            const server = http.createServer(app);
-            const io = new Server(server, {
-                cors: {
-                    origin: '*',
-                    methods: ['GET', 'POST']
-                }
-            });
-
-            const { getProgressTracker } = require('./src/progress-tracker');
-            const progressTracker = getProgressTracker();
-
-            io.on('connection', (socket) => {
-                console.log('🔌 Client WebSocket connecté:', socket.id);
-
-                // Envoyer les jobs actifs au client
-                socket.emit('active-jobs', progressTracker.getActiveJobs());
-
-                // Écouter les demandes de progression
-                socket.on('get-progress', (jobId) => {
-                    const progress = progressTracker.getProgress(jobId);
-                    if (progress) {
-                        socket.emit('progress', progress);
-                    } else {
-                        socket.emit('progress-error', { jobId, error: 'Job not found' });
-                    }
-                });
-
-                socket.on('disconnect', () => {
-                    console.log('🔌 Client WebSocket déconnecté:', socket.id);
-                });
-            });
-
-            // Diffuser les mises à jour de progression
-            setInterval(() => {
-                const activeJobs = progressTracker.getActiveJobs();
-                if (activeJobs.length > 0) {
-                    io.emit('progress-update', activeJobs);
-                }
-            }, 1000); // Mise à jour chaque seconde
-
-            this.io = io;
-            this.progressTracker = progressTracker;
-
-            // Configure timeouts for Render.com (prevent 502 Bad Gateway errors)
-            server.keepAliveTimeout = 120000; // 120 seconds
-            server.headersTimeout = 120000; // 120 seconds
-
-            server.listen(port, '0.0.0.0', () => {
-                console.log(`🌐 Serveur Express démarré sur le port ${port}`);
-                console.log(`🔗 Endpoint Discord: https://glsl-discord-bot.onrender.com/discord`);
-                console.log(`🔗 Endpoint Health: https://glsl-discord-bot.onrender.com/health`);
-                console.log(`🔌 WebSocket disponible sur ws://localhost:${port}`);
-                console.log(`✅ Serveur prêt à recevoir des requêtes Discord`);
-            });
-
-            // Stocker le serveur globalement pour graceful shutdown
-            global.server = server;
-            this.expressServer = server;
-        } catch (error) {
-            // Socket.IO non installé, utiliser Express normal
-            console.log('⚠️ Socket.IO non disponible, WebSocket désactivé');
-            console.log('💡 Pour activer WebSocket: npm install socket.io');
-            
-            const server = app.listen(port, '0.0.0.0', () => {
-                console.log(`🌐 Serveur Express démarré sur le port ${port}`);
-                console.log(`🔗 Endpoint Discord: https://glsl-discord-bot.onrender.com/discord`);
-                console.log(`🔗 Endpoint Health: https://glsl-discord-bot.onrender.com/health`);
-                console.log(`✅ Serveur prêt à recevoir des requêtes Discord`);
-            });
-            
-            // Configure timeouts for Render.com (prevent 502 Bad Gateway errors)
-            server.keepAliveTimeout = 120000; // 120 seconds
-            server.headersTimeout = 120000; // 120 seconds
-
-            // Stocker le serveur globalement pour graceful shutdown
-            global.server = server;
-        }
-
-        this.expressApp = app;
+        this.server = app.listen(port, () => {
+            console.log(`🌐 Serveur Express démarré sur le port ${port}`);
+        });
+        
+        // Gérer la fermeture gracieuse du serveur
+        gracefulShutdown.onShutdown(async () => {
+            console.log(' gracefulShutdown: Fermeture du serveur Express...');
+            if (this.server) {
+                await new Promise(resolve => this.server.close(resolve));
+                console.log(' gracefulShutdown: Serveur Express fermé.');
+            }
+        });
     }
 
     async shutdown() {
@@ -6642,4 +5809,3 @@ if (require.main === module) {
 }
 
 module.exports = { GLSLDiscordBot };
-
