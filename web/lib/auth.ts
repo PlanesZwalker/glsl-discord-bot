@@ -166,87 +166,38 @@ export const authOptions = {
       return session
     },
     async redirect({ url, baseUrl }: any) {
-      // Log redirect for debugging (always log in production for debugging)
-      console.log('🔄 Redirect callback:', { url, baseUrl, urlType: typeof url })
+      console.log('Auth Redirect - URL:', url, 'BaseURL:', baseUrl)
       
+      // Si l'URL contient callbackUrl, l'extraire
       try {
-        // If url is provided and is a valid callback URL, use it
-        if (url) {
-          // Check if url contains callbackUrl parameter
-          try {
-            const urlObj = new URL(url, baseUrl)
-            const callbackUrlParam = urlObj.searchParams.get('callbackUrl')
-            if (callbackUrlParam) {
-              const decodedCallbackUrl = decodeURIComponent(callbackUrlParam)
-              const finalUrl = decodedCallbackUrl.startsWith('/') 
-                ? `${baseUrl}${decodedCallbackUrl}` 
-                : decodedCallbackUrl
-              console.log('✅ Redirecting to callbackUrl from URL:', finalUrl)
-              return finalUrl
-            }
-          } catch (e) {
-            // URL parsing failed, continue with normal logic
-          }
-          
-          // Allows relative callback URLs (e.g., /dashboard)
-          if (url.startsWith('/')) {
-            const redirectUrl = `${baseUrl}${url}`
-            console.log('✅ Redirecting to relative URL:', redirectUrl)
-            return redirectUrl
-          }
-          
-          // Allows callback URLs on the same origin
-          try {
-            const urlObj = new URL(url)
-            if (urlObj.origin === baseUrl) {
-              // Check if the URL has callbackUrl parameter to extract the actual destination
-              const callbackParam = urlObj.searchParams.get('callbackUrl')
-              if (callbackParam) {
-                // Decode the callbackUrl parameter
-                const decodedCallback = decodeURIComponent(callbackParam)
-                const cleanUrl = decodedCallback.startsWith('/') 
-                  ? `${baseUrl}${decodedCallback}`
-                  : `${baseUrl}/${decodedCallback}`
-                console.log('✅ Extracting callbackUrl from redirect URL:', cleanUrl)
-                return cleanUrl
-              }
-              // If URL is just the home page, check if we should redirect to dashboard
-              if (urlObj.pathname === '/' || urlObj.pathname === '') {
-                // Default to dashboard if no specific callback
-                console.log('⚠️ Home page detected, redirecting to dashboard')
-                return `${baseUrl}/dashboard`
-              }
-              console.log('✅ Redirecting to same-origin URL:', url)
-              return url
-            } else {
-              console.warn('⚠️ URL origin mismatch:', { urlOrigin: urlObj.origin, baseUrl })
-            }
-          } catch (e) {
-            // Invalid URL, fall through to default
-            console.warn('⚠️ Invalid URL in redirect:', url, e)
+        const urlObj = new URL(url, baseUrl)
+        const callbackUrl = urlObj.searchParams.get('callbackUrl')
+        
+        if (callbackUrl) {
+          // Valider que le callbackUrl est sûr (même domaine)
+          const callbackUrlObj = new URL(callbackUrl, baseUrl)
+          if (callbackUrlObj.origin === baseUrl) {
+            console.log('Auth Redirect - Vers callbackUrl:', callbackUrl)
+            return callbackUrl
           }
         }
-        
-        // If no URL provided, default to dashboard (user likely wants to go there after sign-in)
-        if (!url || url === baseUrl || url === `${baseUrl}/`) {
-          console.log('⚠️ No callback URL provided, redirecting to dashboard')
-          return `${baseUrl}/dashboard`
-        }
-        
-        // Default: redirect to dashboard
-        console.log('⚠️ No valid callback URL, redirecting to dashboard')
-        return `${baseUrl}/dashboard`
-      } catch (error: any) {
-        console.error('❌ Error in redirect callback:', error)
-        console.error('❌ Redirect error details:', {
-          message: error.message,
-          stack: error.stack,
-          url,
-          baseUrl
-        })
-        // Fallback to dashboard on error
-        return `${baseUrl}/dashboard`
+      } catch (e) {
+        console.error('Auth Redirect - Erreur parsing URL:', e)
       }
+      
+      // Si l'URL commence par le baseUrl, la retourner
+      if (url.startsWith(baseUrl)) {
+        return url
+      }
+      
+      // Si l'URL est relative, la construire
+      if (url.startsWith('/')) {
+        return `${baseUrl}${url}`
+      }
+      
+      // Par défaut, retourner le baseUrl
+      console.log('Auth Redirect - Par défaut vers:', baseUrl)
+      return baseUrl
     },
   },
   pages: {

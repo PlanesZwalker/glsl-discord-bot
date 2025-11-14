@@ -14,25 +14,43 @@ export default function DashboardPage() {
   const router = useRouter()
   const { locale } = useLocale()
   const t = getTranslations(locale)
+  const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/')
+    console.log('Dashboard - Status:', status, 'Session:', !!session)
+    
+    if (status === 'loading') {
+      // Encore en chargement
+      return
     }
-  }, [status, router])
+    
+    if (status === 'unauthenticated') {
+      // Non authentifié, redirection immédiate
+      console.log('Dashboard - Non authentifié, redirection vers /')
+      router.push('/?callbackUrl=/dashboard')
+      return
+    }
+    
+    if (status === 'authenticated' && session) {
+      // Authentifié, afficher le dashboard
+      console.log('Dashboard - Authentifié, affichage du contenu')
+      setIsReady(true)
+    }
+  }, [status, session, router])
 
-  if (status === 'loading') {
+  // Affichage du loader pendant le chargement
+  if (status === 'loading' || !isReady) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-black flex items-center justify-center transition-colors">
-        <div className="text-gray-900 dark:text-white text-xl transition-colors">{t.dashboard.loading}</div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500 mx-auto mb-4"></div>
+          <div className="text-gray-900 dark:text-white text-xl transition-colors">{t.dashboard.loading}</div>
+        </div>
       </div>
     )
   }
 
-  if (!session) {
-    return null
-  }
-
+  // Affichage du dashboard
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-black transition-colors">
       <Navbar />

@@ -3,46 +3,31 @@ import { NextResponse } from 'next/server'
 
 export default withAuth(
   function middleware(req) {
-    const token = req.nextauth.token
-    const pathname = req.nextUrl.pathname
+    console.log('Middleware - Path:', req.nextUrl.pathname)
+    console.log('Middleware - Token:', !!req.nextauth.token)
     
-    // If user is authenticated and accessing dashboard, allow it
-    if (token && pathname.startsWith('/dashboard')) {
-      return NextResponse.next()
-    }
-    
-    // If user is not authenticated and trying to access dashboard,
-    // redirect to home with callbackUrl
-    if (!token && pathname.startsWith('/dashboard')) {
-      const callbackUrl = pathname + req.nextUrl.search
-      const url = req.nextUrl.clone()
-      url.pathname = '/'
-      url.searchParams.set('callbackUrl', callbackUrl)
-      return NextResponse.redirect(url)
-    }
-    
+    // Si pas de token, la redirection est gérée par withAuth
     return NextResponse.next()
   },
   {
-    pages: {
-      signIn: '/',
-    },
     callbacks: {
-      authorized: ({ token, req }) => {
-        const pathname = req.nextUrl.pathname
+      authorized({ req, token }) {
+        const isAuthenticated = !!token
+        const isOnDashboard = req.nextUrl.pathname.startsWith('/dashboard')
         
-        // For dashboard routes, require authentication
-        // Return true to allow the middleware function to handle the redirect
-        // This way we can control the redirect URL with callbackUrl
-        if (pathname.startsWith('/dashboard')) {
-          // Always return true here, let the middleware function handle redirects
-          // This allows us to customize the redirect URL
-          return true
+        console.log('Middleware Auth - Dashboard:', isOnDashboard, 'Auth:', isAuthenticated)
+        
+        if (isOnDashboard) {
+          // Dashboard nécessite authentification
+          return isAuthenticated
         }
         
-        // For all other routes, allow access
+        // Autres routes autorisées
         return true
       },
+    },
+    pages: {
+      signIn: '/',
     },
   }
 )

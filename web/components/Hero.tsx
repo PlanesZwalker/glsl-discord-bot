@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSession, signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useLocale } from '@/hooks/useLocale'
 import { getTranslations } from '@/lib/i18n'
 
@@ -11,78 +11,39 @@ export function Hero() {
   const { locale } = useLocale()
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const t = getTranslations(locale)
   const [showCommands, setShowCommands] = useState(false)
-  const [callbackUrl, setCallbackUrl] = useState('/dashboard')
-  const hasRedirected = useRef(false) // Prevent multiple redirects
+  const [hasRedirected, setHasRedirected] = useState(false)
   
-  // Get callbackUrl from URL params to preserve it (client-side only)
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    // Éviter les redirections multiples
+    if (hasRedirected) return
     
-    const params = new URLSearchParams(window.location.search)
-    const rawCallbackUrl = params.get('callbackUrl')
-    if (rawCallbackUrl) {
-      const decoded = decodeURIComponent(rawCallbackUrl)
-      setCallbackUrl(decoded)
-    }
+    const callbackUrl = searchParams.get('callbackUrl')
     
-    // If user is already logged in and we're on the home page, redirect to dashboard
-    // This handles the case where OAuth redirects back to home after sign-in
-    if (status === 'authenticated' && session && !hasRedirected.current) {
-      const currentPath = window.location.pathname
-      const targetPath = rawCallbackUrl ? decodeURIComponent(rawCallbackUrl) : '/dashboard'
-      const finalTarget = targetPath.startsWith('/') ? targetPath : `/${targetPath}`
-      
-      // Only redirect if we're on the home page and not already on the target
-      if (currentPath === '/' && currentPath !== finalTarget) {
-        hasRedirected.current = true
-        console.log('✅ User authenticated, redirecting to:', finalTarget)
-        // Use router.push for immediate redirect
-        router.push(finalTarget)
-        return
-      }
-    }
+    console.log('Hero - Status:', status, 'CallbackUrl:', callbackUrl)
     
-    // Also check if we have a callbackUrl in the URL and session is loading
-    // This handles the case where OAuth just completed and session is being established
-    if (rawCallbackUrl && status !== 'unauthenticated' && !hasRedirected.current) {
-      // Wait a bit for session to be established, then redirect
-      const timeoutId = setTimeout(() => {
-        if (status === 'authenticated' && session && !hasRedirected.current) {
-          const decoded = decodeURIComponent(rawCallbackUrl)
-          const finalTarget = decoded.startsWith('/') ? decoded : `/${decoded}`
-          hasRedirected.current = true
-          console.log('✅ Session established, redirecting to:', finalTarget)
-          router.push(finalTarget)
-        }
-      }, 200)
-      
-      return () => clearTimeout(timeoutId)
+    // Si authentifié ET callbackUrl présent ET pas encore redirigé
+    if (status === 'authenticated' && callbackUrl && !hasRedirected) {
+      console.log('Hero - Redirection vers:', callbackUrl)
+      setHasRedirected(true)
+      router.push(callbackUrl)
     }
-  }, [session, status, router])
+  }, [status, searchParams, router, hasRedirected])
   
-  const handleDashboardClick = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    
-    // Get current callbackUrl from URL params if available
-    const params = new URLSearchParams(window.location.search)
-    const urlCallbackUrl = params.get('callbackUrl')
-    const targetUrl = urlCallbackUrl ? decodeURIComponent(urlCallbackUrl) : callbackUrl
-    
-    if (session && status === 'authenticated') {
-      // User is logged in, redirect directly using router
-      console.log('✅ User authenticated, redirecting to:', targetUrl)
-      router.push(targetUrl)
+  const handleDashboardClick = async () => {
+    if (status === 'authenticated') {
+      // Déjà authentifié, aller directement au dashboard
+      console.log('Hero - User authenticated, redirecting to dashboard')
+      router.push('/dashboard')
     } else {
-      // User is not logged in, trigger sign-in with callbackUrl
-      try {
-        console.log('🔍 [Auth Debug] Dashboard click sign-in:', { callbackUrl: targetUrl })
-        const result = await signIn('discord', { callbackUrl: targetUrl, redirect: true })
-        console.log('🔍 [Auth Debug] Dashboard sign-in result:', result)
-      } catch (error: any) {
-        console.error('🔍 [Auth Debug] Dashboard sign-in error:', error)
-      }
+      // Non authentifié, déclencher le sign-in
+      console.log('Hero - User not authenticated, triggering sign-in')
+      await signIn('discord', { 
+        callbackUrl: '/dashboard',
+        redirect: true 
+      })
     }
   }
 
