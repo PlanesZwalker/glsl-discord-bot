@@ -4913,38 +4913,17 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 payloadJson.components = options.components;
                             }
                             
-                            // Vérifier que le payload n'est pas vide (Discord nécessite au moins content ou embeds)
-                            // CRITIQUE: Avec FormData et editReply, Discord est très strict sur le content
-                            // Discord rejette les caractères invisibles, les emojis seuls, et même un point seul
-                            // Solution: Utiliser un texte descriptif minimal qui est accepté par Discord
-                            if (!payloadJson.content) {
-                                if (payloadJson.embeds && payloadJson.embeds.length > 0) {
-                                    // Avec FormData, Discord nécessite un content même avec des embeds
-                                    // Utiliser un texte descriptif minimal - Discord rejette les emojis seuls
-                                    payloadJson.content = 'Shader compilé avec succès';
-                                    console.log('⚠️ Content minimal ajouté pour FormData (embeds présents)');
-                                } else {
-                                    // Pas d'embeds non plus, ajouter un contenu par défaut
-                                    console.warn('⚠️ Payload JSON vide - ajout d\'un contenu par défaut');
-                                    payloadJson.content = 'Shader compilé avec succès';
-                                }
-                            } else if (payloadJson.content && payloadJson.content.trim() === '') {
-                                // Si content existe mais est vide/espaces, le remplacer
-                                if (payloadJson.embeds && payloadJson.embeds.length > 0) {
-                                    // Utiliser un texte descriptif minimal - Discord rejette les emojis seuls
-                                    payloadJson.content = 'Shader compilé avec succès';
-                                    console.log('⚠️ Content vide remplacé par texte minimal pour FormData');
-                                } else {
-                                    // Pas d'embeds, remplacer par un contenu valide
-                                    payloadJson.content = 'Shader compilé avec succès';
-                                }
-                            } else if (payloadJson.content && payloadJson.content.trim().length <= 2) {
-                                // Si le content est trop court (comme un emoji seul), le remplacer
-                                if (payloadJson.embeds && payloadJson.embeds.length > 0) {
-                                    // Discord rejette les emojis seuls dans FormData, utiliser un texte
-                                    payloadJson.content = 'Shader compilé avec succès';
-                                    console.log('⚠️ Content trop court remplacé par texte minimal pour FormData');
-                                }
+                            // CRITIQUE: Discord avec FormData est très strict
+                            // Solution: Si on a des embeds, NE PAS envoyer de content (Discord accepte embeds seuls)
+                            // Si pas d'embeds, utiliser un content descriptif
+                            if (payloadJson.embeds && payloadJson.embeds.length > 0) {
+                                // Supprimer le content - Discord accepte embeds sans content avec FormData
+                                delete payloadJson.content;
+                                console.log('✅ Embeds présents - suppression du content (Discord accepte embeds seuls)');
+                            } else if (!payloadJson.content || payloadJson.content.trim() === '' || payloadJson.content.trim().length <= 2) {
+                                // Pas d'embeds et content invalide - utiliser un content descriptif
+                                payloadJson.content = 'Shader compilé et prêt !';
+                                console.log('⚠️ Content invalide remplacé par texte descriptif');
                             }
                             
                             // Valider que les embeds sont correctement formatés
@@ -4962,16 +4941,16 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 }
                             }
                             
-                            // S'assurer que le content est toujours présent et valide
-                            if (!payloadJson.content || payloadJson.content.trim() === '' || payloadJson.content.trim().length <= 2) {
-                                payloadJson.content = 'Shader compilé avec succès';
-                                console.log('⚠️ Content corrigé pour FormData');
-                            }
-                            
                             // Vérification finale: s'assurer qu'on a au moins content ou embeds
                             if (!payloadJson.content && (!payloadJson.embeds || payloadJson.embeds.length === 0)) {
                                 console.error('❌ Payload JSON vide - ajout forcé de content');
-                                payloadJson.content = 'Shader compilé avec succès';
+                                payloadJson.content = 'Shader compilé et prêt !';
+                            }
+                            
+                            // Si on a des embeds, s'assurer qu'on n'a PAS de content (évite les conflits Discord)
+                            if (payloadJson.embeds && payloadJson.embeds.length > 0 && payloadJson.content) {
+                                console.log('⚠️ Embeds présents mais content aussi - suppression du content');
+                                delete payloadJson.content;
                             }
                             
                             // Stringify le JSON avec des options pour garantir un encodage correct
@@ -4979,14 +4958,22 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             
                             // Vérification finale avant l'envoi
                             const finalPayloadObj = JSON.parse(payloadJsonString);
-                            if (!finalPayloadObj.content || finalPayloadObj.content.trim() === '' || finalPayloadObj.content.trim().length <= 2) {
-                                console.error('❌ ERREUR CRITIQUE: Content toujours invalide après stringify!');
+                            
+                            // Si on a des embeds, on ne devrait PAS avoir de content
+                            if (finalPayloadObj.embeds && finalPayloadObj.embeds.length > 0) {
+                                if (finalPayloadObj.content) {
+                                    console.log('⚠️ Correction finale: suppression du content car embeds présents');
+                                    delete finalPayloadObj.content;
+                                    payloadJsonString = JSON.stringify(finalPayloadObj, null, 0);
+                                }
+                            } else if (!finalPayloadObj.content || finalPayloadObj.content.trim() === '' || finalPayloadObj.content.trim().length <= 2) {
+                                // Pas d'embeds et content invalide
+                                console.error('❌ ERREUR CRITIQUE: Content invalide et pas d\'embeds!');
                                 console.error(`❌ Content value: "${finalPayloadObj.content}"`);
                                 console.error(`❌ Content length: ${finalPayloadObj.content?.length || 0}`);
-                                // Forcer un content minimal
-                                payloadJson.content = 'Shader compilé avec succès';
-                                payloadJsonString = JSON.stringify(payloadJson, null, 0);
-                                console.log('✅ Correction finale: content forcé');
+                                finalPayloadObj.content = 'Shader compilé et prêt !';
+                                payloadJsonString = JSON.stringify(finalPayloadObj, null, 0);
+                                console.log('✅ Correction finale: content descriptif ajouté');
                             }
                             
                             console.log(`📤 Payload JSON: ${payloadJsonString.substring(0, 200)}...`);
