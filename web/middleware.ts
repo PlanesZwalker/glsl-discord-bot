@@ -43,10 +43,19 @@ export default withAuth(
         const isAuthenticated = !!token
         const isOnDashboard = req.nextUrl.pathname.startsWith('/dashboard')
         
-        console.log('🔍 Middleware Auth Check - Dashboard:', isOnDashboard, 'Authenticated:', isAuthenticated)
+        // En mode développement local, permettre l'accès au dashboard sans authentification
+        const isLocalDev = process.env.NODE_ENV === 'development' && 
+                           (req.nextUrl.hostname === 'localhost' || req.nextUrl.hostname === '127.0.0.1')
+        
+        console.log('🔍 Middleware Auth Check - Dashboard:', isOnDashboard, 'Authenticated:', isAuthenticated, 'LocalDev:', isLocalDev)
         
         if (isOnDashboard) {
-          // Dashboard nécessite authentification
+          // En local, autoriser l'accès sans authentification
+          if (isLocalDev) {
+            console.log('✅ Middleware Auth Check - Mode développement local, autorisation dashboard')
+            return true
+          }
+          // Dashboard nécessite authentification en production
           // Retourner true pour laisser le middleware gérer la redirection avec callbackUrl
           return true
         }
