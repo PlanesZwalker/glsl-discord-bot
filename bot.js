@@ -4740,13 +4740,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 payloadJson.components = options.components;
                             }
                             
-                            // CRITIQUE: Avec FormData + fichiers, Discord nécessite ABSOLUMENT un content non-vide et non-trimmable
-                            // Discord rejette les espaces, Zero-Width Space, et autres caractères invisibles
-                            // SOLUTION: Utiliser un texte minimal mais visible (emoji ou texte court)
+                            // CRITIQUE: Avec FormData + fichiers, Discord nécessite ABSOLUMENT un content non-vide
+                            // D'après la doc Discord (code 50006), le message ne peut pas être vide
+                            // SOLUTION: Utiliser un texte réel (pas d'emoji seul, Discord peut le rejeter)
+                            // Utiliser un texte minimal mais descriptif
                             if (!options.content || options.content.trim() === '') {
-                                // Utiliser un emoji comme content (visible mais minimal)
-                                payloadJson.content = '🎨'; // Emoji visible - Discord l'accepte
-                                console.log('✅ FormData - ajout emoji comme content (visible mais minimal)');
+                                // Utiliser un texte réel au lieu d'un emoji seul
+                                payloadJson.content = 'Shader animation'; // Texte réel - Discord l'accepte
+                                console.log('✅ FormData - ajout texte réel comme content (Discord nécessite un texte non-vide)');
                             } else {
                                 // Si un content réel est fourni, l'utiliser
                                 payloadJson.content = options.content;
@@ -4764,16 +4765,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                 }
                             }
                             
-                            // Vérification finale: s'assurer qu'on a au moins content ou embeds
-                            if (!payloadJson.content && (!payloadJson.embeds || payloadJson.embeds.length === 0)) {
-                                console.error('❌ Payload JSON vide - ajout forcé de content');
-                                payloadJson.content = '🎨'; // Emoji comme fallback
-                            }
-                            
-                            // IMPORTANT: S'assurer que le content n'est jamais undefined ou null
-                            // Discord rejette même les chaînes vides après trim
+                            // Vérification finale: s'assurer que le content est toujours présent et non vide
+                            // Discord code 50006: "Cannot send an empty message"
                             if (!payloadJson.content || typeof payloadJson.content !== 'string' || payloadJson.content.trim().length === 0) {
-                                payloadJson.content = '🎨'; // Emoji visible comme fallback absolu
+                                payloadJson.content = 'Shader animation'; // Texte réel comme fallback absolu
+                                console.log('⚠️ FormData - content vide détecté, utilisation du fallback');
                             }
                             
                             // Stringify le JSON - utiliser JSON.stringify sans replacer pour préserver l'emoji
