@@ -54,7 +54,8 @@ export function Features() {
           {features.map((feature, index) => (
             <div
               key={index}
-              className="bg-white dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-discord-blurple transition-colors shadow-sm dark:shadow-none"
+              className="bg-white dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-discord-blurple transition-all duration-300 shadow-sm dark:shadow-none transform hover:scale-105 hover:shadow-lg"
+              style={{ animationDelay: `${index * 0.1}s` }}
             >
               <div className="flex items-start gap-4">
                 <div className="text-4xl">{feature.icon}</div>

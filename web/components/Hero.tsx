@@ -103,19 +103,19 @@ export function Hero() {
     <section className="relative overflow-hidden pt-20 pb-32">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6 transition-colors">
+          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6 transition-colors animate-fadeIn">
             {t.hero.title}
           </h1>
-          <p className="text-xl md:text-2xl text-gray-700 dark:text-gray-300 mb-8 max-w-3xl mx-auto transition-colors">
+          <p className="text-xl md:text-2xl text-gray-700 dark:text-gray-300 mb-8 max-w-3xl mx-auto transition-colors animate-fadeIn" style={{ animationDelay: '0.1s' }}>
             {t.hero.subtitle}
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8 animate-fadeIn" style={{ animationDelay: '0.2s' }}>
             {isInviteUrlValid ? (
               <a
                 href={botInviteUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="bg-discord-blurple hover:bg-blue-600 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-colors"
+                className="bg-discord-blurple hover:bg-blue-600 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-lg shadow-md"
               >
                 {t.hero.cta}
               </a>
@@ -126,7 +126,7 @@ export function Hero() {
             )}
             <button
               onClick={handleDashboardClick}
-              className="bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-900 dark:text-white px-8 py-4 rounded-lg text-lg font-semibold transition-colors"
+              className="bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-900 dark:text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-lg shadow-md"
             >
               {t.hero.ctaSecondary}
             </button>
@@ -174,7 +174,11 @@ export function Hero() {
         </div>
       </div>
       <div className="absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-discord-blurple/10 via-purple-500/10 to-pink-500/10 dark:from-discord-blurple/20 dark:via-purple-500/20 dark:to-pink-500/20 blur-3xl transition-opacity"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-discord-blurple/20 via-purple-500/20 to-pink-500/20 dark:from-discord-blurple/30 dark:via-purple-500/30 dark:to-pink-500/30 blur-3xl animate-pulse-glow"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-pink-500/10 dark:from-blue-500/20 dark:via-purple-500/20 dark:to-pink-500/20 blur-3xl animate-float"></div>
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-discord-blurple/20 dark:bg-discord-blurple/30 rounded-full blur-3xl animate-pulse-glow"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-pink-500/20 dark:bg-pink-500/30 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute top-1/2 right-1/3 w-72 h-72 bg-purple-500/20 dark:bg-purple-500/30 rounded-full blur-3xl animate-pulse-glow" style={{ animationDelay: '2s' }}></div>
       </div>
     </section>
   )
