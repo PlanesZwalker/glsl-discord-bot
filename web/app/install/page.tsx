@@ -47,6 +47,11 @@ export default function InstallPage() {
           <p className="text-xl text-gray-700 dark:text-gray-300 transition-colors">
             {t.install.subtitle}
           </p>
+          {t.install.description && (
+            <p className="text-base text-gray-600 dark:text-gray-400 mt-4 max-w-2xl mx-auto transition-colors">
+              {t.install.description}
+            </p>
+          )}
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 mb-8 transition-colors shadow-sm dark:shadow-none">

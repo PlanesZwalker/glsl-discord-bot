@@ -67,12 +67,13 @@ export const translations = {
     },
     install: {
       title: 'Install GLSL Discord Bot',
-      subtitle: 'Add the bot to your Discord server',
+      subtitle: 'Add the bot to your Discord server or install it to your account',
       button: 'Add to Discord',
+      description: 'You can install this bot to a server (for everyone) or to your account (for DMs). Discord will let you choose during installation.',
       steps: {
         title: 'Installation Steps',
         step1: 'Click the "Add to Discord" button',
-        step2: 'Select your server',
+        step2: 'Choose to install to a server or to your account',
         step3: 'Authorize the bot',
         step4: 'Start using /shader commands!',
       },
@@ -146,12 +147,13 @@ export const translations = {
     },
     install: {
       title: 'Installer le Bot GLSL Discord',
-      subtitle: 'Ajoutez le bot à votre serveur Discord',
+      subtitle: 'Ajoutez le bot à votre serveur Discord ou installez-le sur votre compte',
       button: 'Ajouter à Discord',
+      description: 'Vous pouvez installer ce bot sur un serveur (pour tout le monde) ou sur votre compte (pour les DMs). Discord vous laissera choisir lors de l\'installation.',
       steps: {
         title: 'Étapes d\'installation',
         step1: 'Cliquez sur le bouton "Ajouter à Discord"',
-        step2: 'Sélectionnez votre serveur',
+        step2: 'Choisissez d\'installer sur un serveur ou sur votre compte',
         step3: 'Autorisez le bot',
         step4: 'Commencez à utiliser les commandes /shader !',
       },
