@@ -98,9 +98,7 @@ Thumbs.db
 # Local test files (ne pas pousser vers le remote)
 tests/
 
-# Documentation Markdown files (except README.md)
+# Documentation Markdown files (except README.md and PROJECT_EXPLANATION.md)
 *.md
 !README.md
-!docs/API.md
-!docs/SHADER_GUIDE.md
-!docs/AUTH_TROUBLESHOOTING.md
+!PROJECT_EXPLANATION.md
