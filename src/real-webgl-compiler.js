@@ -3016,6 +3016,11 @@ class RealWebGLCompiler {
     }
 
     detectShaderFormat(shaderCode) {
+        // Gérer les cas null/undefined
+        if (!shaderCode || typeof shaderCode !== 'string') {
+            return 'glsl'; // Par défaut
+        }
+        
         // Détecter si c'est WGSL ou GLSL
         const wgslKeywords = ['@fragment', '@vertex', '@compute', '@group', '@binding', 'fn main', 'var<', 'let ', 'struct ', 'texture_', 'sampler_', 'textureSample', 'textureLoad'];
         const glslKeywords = ['void main', 'gl_FragColor', 'gl_FragCoord', 'uniform ', 'attribute ', 'varying ', 'vec2', 'vec3', 'vec4', 'mat2', 'mat3', 'mat4', 'mainImage'];
