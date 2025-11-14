@@ -21,8 +21,18 @@ export default function DashboardPage() {
   useEffect(() => {
     console.log('Dashboard - Status:', status, 'Session:', !!session)
     
+    // En mode développement local, permettre l'accès sans authentification pour tester
+    const isLocalDev = process.env.NODE_ENV === 'development' && window.location.hostname === 'localhost'
+    
     if (status === 'loading') {
       // Encore en chargement
+      return
+    }
+    
+    // En local, permettre l'accès pour tester le dashboard
+    if (isLocalDev) {
+      console.log('Dashboard - Mode développement local, affichage du dashboard sans authentification')
+      setIsReady(true)
       return
     }
     
