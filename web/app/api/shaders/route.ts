@@ -16,13 +16,20 @@ export const revalidate = 0
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const userId = request.nextUrl.searchParams.get('userId')
-    if (userId !== session.user.id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    
+    // En mode développement local, permettre l'accès sans authentification
+    const isLocalDev = process.env.NODE_ENV === 'development'
+    const isLocalhost = request.headers.get('host')?.includes('localhost')
+    
+    if (!isLocalDev || !isLocalhost) {
+      // En production, nécessiter une session
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      if (userId !== session.user.id) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
     // Try fetching from bot API first (recommended for production)

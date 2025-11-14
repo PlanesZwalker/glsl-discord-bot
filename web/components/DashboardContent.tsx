@@ -27,7 +27,9 @@ export function DashboardContent() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (session?.user?.id) {
+    // En local, récupérer les shaders même sans session
+    const isLocalDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+    if (session?.user?.id || isLocalDev) {
       fetchShaders()
     }
   }, [session])
@@ -36,7 +38,10 @@ export function DashboardContent() {
     try {
       setLoading(true)
       setError(null)
-      const response = await fetch(`/api/shaders?userId=${session?.user?.id}`)
+      // En local, utiliser un userId par défaut ou récupérer tous les shaders
+      const isLocalDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+      const userId = session?.user?.id || (isLocalDev ? '123456789012345678' : null)
+      const response = await fetch(`/api/shaders?userId=${userId}`)
       
       if (response.ok) {
         const data = await response.json()
