@@ -1470,6 +1470,39 @@ class RealWebGLCompiler {
         // Créer une nouvelle page pour cette compilation (isolation)
         const page = await browserToUse.newPage();
         
+        // Définir des limites strictes
+        await page.setDefaultTimeout(10000); // 10s par opération
+        await page.setDefaultNavigationTimeout(10000);
+        
+        // Bloquer tous les chargements externes
+        await page.setRequestInterception(true);
+        page.on('request', request => {
+            const url = request.url();
+            
+            // Autoriser seulement data: URIs et about:blank
+            if (url.startsWith('data:') || url.startsWith('about:')) {
+                request.continue();
+            } else {
+                console.warn(`🚫 Requête bloquée: ${url}`);
+                request.abort();
+            }
+        });
+        
+        // Injecter Content Security Policy strict
+        await page.setExtraHTTPHeaders({
+            'Content-Security-Policy': [
+                "default-src 'none'",
+                "script-src 'unsafe-inline' 'unsafe-eval'", // Nécessaire pour WebGL
+                "style-src 'unsafe-inline'",
+                "img-src data:",
+                "connect-src 'none'",
+                "font-src 'none'",
+                "object-src 'none'",
+                "media-src 'none'",
+                "frame-src 'none'"
+            ].join('; ')
+        });
+        
         // Capturer les erreurs de console pour déboguer
         page.on('console', msg => {
             const type = msg.type();
