@@ -4796,6 +4796,24 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             
                             // Liste de TOUTES les stratégies à tester
                             const strategies = [
+                                // STRATÉGIE 0: Envoyer le GIF sans embed (juste comme fichier attaché)
+                                // Discord affiche parfois mieux les GIFs animés quand ils sont envoyés directement sans embed
+                                {
+                                    name: 'rest.patch_file_only_no_embed',
+                                    desc: 'Envoyer le GIF comme fichier attaché sans embed (meilleure compatibilité GIF animé)',
+                                    test: async () => {
+                                        // Envoyer juste le fichier avec un message texte, sans embed
+                                        // Discord affiche mieux les GIFs animés de cette façon
+                                        const restPayload = {
+                                            content: '🎨 Shader Animation'
+                                        };
+                                        
+                                        await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
+                                            body: restPayload,
+                                            files: options.files
+                                        });
+                                    }
+                                },
                                 // STRATÉGIE 1: Double édition (workaround du bug Discord connu)
                                 // Bug Discord: Les images dans les embeds envoyés via webhooks ne s'affichent pas la moitié du temps
                                 // Solution: Éditer le message deux fois avec le même contenu force Discord à afficher l'image
@@ -4804,9 +4822,13 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                     desc: 'Double édition avec AttachmentBuilder + embed minimal (workaround bug Discord)',
                                     test: async () => {
                                         const fileName = options.files[0]?.name || 'animation.gif';
+                                        // Pour que Discord affiche le GIF animé, utiliser un embed avec titre
+                                        // Discord affiche mieux les GIFs animés quand ils ont un titre dans l'embed
                                         const minimalEmbed = [{
+                                            title: '🎨 Shader Animation',
                                             image: { url: `attachment://${fileName}` },
-                                            color: embedsJson[0]?.color || 0x9B59B6
+                                            color: embedsJson[0]?.color || 0x9B59B6,
+                                            timestamp: new Date().toISOString()
                                         }];
                                         const restPayload = {
                                             embeds: minimalEmbed
@@ -4855,9 +4877,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                     desc: 'rest.patch avec attachments dans payload_json + embed minimal',
                                     test: async () => {
                                         const fileName = filePaths[0]?.name || 'animation.gif';
+                                        // Pour que Discord affiche le GIF animé, utiliser un embed avec titre
                                         const minimalEmbed = [{
+                                            title: '🎨 Shader Animation',
                                             image: { url: `attachment://${fileName}` },
-                                            color: embedsJson[0]?.color || 0x9B59B6
+                                            color: embedsJson[0]?.color || 0x9B59B6,
+                                            timestamp: new Date().toISOString()
                                         }];
                                         
                                         // Préparer les fichiers en Buffer
@@ -4906,9 +4931,13 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                         // Créer un embed minimal avec seulement l'image
                                         // S'assurer que le nom du fichier correspond exactement
                                         const fileName = options.files[0]?.name || 'animation.gif';
+                                        // Pour que Discord affiche le GIF animé, utiliser un embed avec titre
+                                        // Discord affiche mieux les GIFs animés quand ils ont un titre dans l'embed
                                         const minimalEmbed = [{
+                                            title: '🎨 Shader Animation',
                                             image: { url: `attachment://${fileName}` },
-                                            color: embedsJson[0]?.color || 0x9B59B6
+                                            color: embedsJson[0]?.color || 0x9B59B6,
+                                            timestamp: new Date().toISOString()
                                         }];
                                         const restPayload = {
                                             embeds: minimalEmbed
@@ -4928,9 +4957,12 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                     desc: 'rest.patch avec fichiers lus en Buffer + embed minimal',
                                     test: async () => {
                                         const fileName = filePaths[0]?.name || 'animation.gif';
+                                        // Pour que Discord affiche le GIF animé, utiliser un embed avec titre
                                         const minimalEmbed = [{
+                                            title: '🎨 Shader Animation',
                                             image: { url: `attachment://${fileName}` },
-                                            color: embedsJson[0]?.color || 0x9B59B6
+                                            color: embedsJson[0]?.color || 0x9B59B6,
+                                            timestamp: new Date().toISOString()
                                         }];
                                         const restPayload = {
                                             embeds: minimalEmbed
