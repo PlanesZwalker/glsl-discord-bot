@@ -5678,33 +5678,17 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                     next();
         });
         
-        // Middleware personnalisé pour capturer le raw body pour la validation Discord
-        // DOIT être avant express.json() et avant la route /discord
-        app.use('/discord', (req, res, next) => {
-            if (req.method === 'POST') {
-                const chunks = [];
-                req.on('data', (chunk) => {
-                    chunks.push(chunk);
-                });
-                req.on('end', () => {
-                    // Stocker le raw body comme Buffer
-                    req.rawBody = Buffer.concat(chunks);
-                    // Créer un nouveau stream pour que les middlewares suivants puissent lire
-                    req.body = req.rawBody;
-                    next();
-                });
-                req.on('error', (err) => {
-                    console.error('❌ Erreur lecture raw body:', err);
-                    return res.status(400).send('Bad Request: Error reading body');
-                });
-            } else {
-                next();
-            }
-        });
-        
         // Route pour les interactions Discord avec validation de signature
         // DOIT être avant express.json() pour capturer le raw body
-        app.post('/discord', async (req, res) => {
+        // Utiliser express.raw() avec verify pour capturer le raw body sans le consommer
+        app.post('/discord', express.raw({ 
+            type: 'application/json',
+            verify: (req, res, buf, encoding) => {
+                // Stocker le raw body dans req.rawBody pour la validation de signature
+                // buf est déjà un Buffer, pas besoin de conversion
+                req.rawBody = buf;
+            }
+        }), async (req, res) => {
             try {
                 // Récupérer les en-têtes de signature (Express normalise en minuscules)
                 const signature = req.headers['x-signature-ed25519'] || req.headers['X-Signature-Ed25519'];
@@ -5721,8 +5705,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                 }
                 
                 // Vérifier la signature avec le raw body
-                // Utiliser req.rawBody capturé par notre middleware personnalisé
-                const rawBody = req.rawBody;
+                // Utiliser req.rawBody capturé par express.raw() avec verify
+                const rawBody = req.rawBody || req.body;
                 if (!rawBody || !Buffer.isBuffer(rawBody)) {
                     console.error('❌ Raw body manquant ou invalide pour validation de signature:', {
                         hasBody: !!rawBody,
