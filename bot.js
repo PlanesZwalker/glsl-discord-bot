@@ -4555,6 +4555,18 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         return null;
     }
 
+    getPresetShader(name) {
+        // Retourner un objet avec code et name pour les presets
+        const code = this.getShaderCodeByName(name);
+        if (!code) {
+            return null;
+        }
+        return {
+            code: code,
+            name: name
+        };
+    }
+
     checkCooldown(userId, command) {
         if (!this.cooldowns.has(command.data.name)) {
             this.cooldowns.set(command.data.name, new Collection());
@@ -5993,4 +6005,4 @@ if (require.main === module) {
     bot.initialize().catch(console.error);
 }
 
-module.exports = { GLSLDiscordBot };
+module.exports = { GLSLDiscordBot, verifyDiscordSignatureWithRawBody };
