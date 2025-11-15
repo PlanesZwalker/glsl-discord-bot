@@ -276,7 +276,7 @@ Liste tous les presets disponibles
 
 - **Railway.app** ⭐ (Recommandé) - 500h/mois gratuites - [Guide](docs/deployment/free-alternatives.md)
 - **Fly.io** ⭐⭐ - 3 VMs gratuites, illimité - [Guide](docs/deployment/free-alternatives.md)
-- **Serveur Mutualisé OVH** - Hébergement fixe, pas de limite - [Guide](docs/deployment/ovh-shared-hosting.md)
+- **Serveur Mutualisé OVH** - Hébergement fixe, pas de limite - [Guide rapide](docs/deployment/ovh-quick-start.md) | [Guide complet](docs/deployment/ovh-shared-hosting.md)
 - **Render.com** - Plan gratuit avec minutes limitées - [Guide](docs/deployment/render-optimization.md)
 
 ## 📖 Documentation
