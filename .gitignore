@@ -109,12 +109,11 @@ web/**/*.spec.tsx
 # Documentation Markdown files (except README.md)
 *.md
 !README.md
-# Exclude documentation files specifically
-MONETIZATION_SETUP.md
-SECURITY_IMPLEMENTATION.md
-DISCORD_FILE_UPLOAD_ATTEMPTS.md
-TODO.md
-PROJECT_EXPLANATION.md
+!docs/README.md
+# Exclude documentation files in docs/ (keep them local, not versioned)
+docs/*.md
+docs/**/*.md
+!docs/README.md
 web/README_LOCAL.md
 
 # Storage - Tous les fichiers générés (frames, GIFs, MP4s, cache)
