@@ -1423,7 +1423,10 @@ class RealWebGLCompiler {
     }
 
     // Créer une nouvelle page avec le template WebGL pour chaque compilation
-    async createCompilationPage(browser = null) {
+    async createCompilationPage(browser = null, width = null, height = null) {
+        // Utiliser les dimensions fournies ou les dimensions par défaut
+        const canvasWidth = width || this.canvasWidth;
+        const canvasHeight = height || this.canvasHeight;
         // Pré-échapper les chaînes JavaScript pour éviter les problèmes d'apostrophes
         const errorInitMsg = escapeJSStringForTemplate('❌ Erreur lors de l\'initialisation WebGL/WebGPU:');
         const errorImageMsg = escapeJSStringForTemplate('Impossible de charger l\'image: ');
@@ -2524,6 +2527,31 @@ class RealWebGLCompiler {
         const userId = options.userId || null;
         const jobId = options.jobId || `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
+        // Déterminer la résolution selon le plan de l'utilisateur
+        let compilationWidth = this.canvasWidth;
+        let compilationHeight = this.canvasHeight;
+        if (options.userId && options.database) {
+            try {
+                const userPlan = await options.database.getUserPlan(options.userId);
+                if (userPlan === 'pro') {
+                    // Plan Pro: HD (1920x1080)
+                    compilationWidth = 1920;
+                    compilationHeight = 1080;
+                    console.log('📐 Plan Pro détecté - Résolution HD: 1920x1080');
+                } else if (userPlan === 'studio') {
+                    // Plan Studio: 4K (3840x2160)
+                    compilationWidth = 3840;
+                    compilationHeight = 2160;
+                    console.log('📐 Plan Studio détecté - Résolution 4K: 3840x2160');
+                } else {
+                    // Plan Free: résolution par défaut (320x240)
+                    console.log('📐 Plan Free - Résolution standard: 320x240');
+                }
+            } catch (planError) {
+                console.warn('⚠️ Erreur récupération plan (utilisation résolution par défaut):', planError.message);
+            }
+        }
+        
         // Telemetry - Start span
         let telemetrySpan = null;
         try {
@@ -2591,7 +2619,7 @@ class RealWebGLCompiler {
                         metadata: {
                             frames: this.frameRate * this.duration,
                             duration: this.duration,
-                            resolution: `${this.canvasWidth}x${this.canvasHeight}`,
+                            resolution: `${compilationWidth}x${compilationHeight}`,
                             cached: true
                         }
                     };
@@ -2644,8 +2672,8 @@ class RealWebGLCompiler {
                             }
                         }
                         
-                        // Create a new page
-                        compilationPage = await this.createCompilationPage(browser);
+                        // Create a new page with the appropriate resolution
+                        compilationPage = await this.createCompilationPage(browser, compilationWidth, compilationHeight);
                         compilationPage.setDefaultTimeout(this.compilationTimeout);
                         compilationPage.setDefaultNavigationTimeout(this.compilationTimeout);
                         console.log('✅ Nouvelle page de compilation créée');
@@ -3079,9 +3107,9 @@ class RealWebGLCompiler {
                     }
                 }
                 
-                // Créer un GIF animé à partir des frames
+                // Créer un GIF animé à partir des frames avec la résolution appropriée
                 console.log('🎬 Génération du GIF animé...');
-                gifPath = await this.createGifFromFrames(framesToUse, frameDirectory);
+                gifPath = await this.createGifFromFrames(framesToUse, frameDirectory, compilationWidth, compilationHeight);
                 if (gifPath) {
                     console.log(`✅ GIF généré: ${gifPath}`);
                 } else {
@@ -3094,7 +3122,7 @@ class RealWebGLCompiler {
                 frames: framesToUse.length,
                 frameRate: this.frameRate,
                 duration: this.isVercel ? (totalFrames / this.frameRate) : this.duration,
-                resolution: `${this.canvasWidth}x${this.canvasHeight}`,
+                resolution: `${compilationWidth}x${compilationHeight}`,
                 shaderCode: shaderCode,
                 compilationTime: Date.now(),
                 environment: this.isVercel ? 'vercel' : 'local'
@@ -3310,7 +3338,10 @@ class RealWebGLCompiler {
         return imageData;
     }
 
-    async createGifFromFrames(frames, frameDirectory) {
+    async createGifFromFrames(frames, frameDirectory, width = null, height = null) {
+        // Utiliser les dimensions fournies ou les dimensions par défaut
+        const gifWidth = width || this.canvasWidth;
+        const gifHeight = height || this.canvasHeight;
         try {
             console.log('🎬 Création du GIF animé (optimisé pour GIF)...');
             
@@ -3354,8 +3385,8 @@ class RealWebGLCompiler {
                 try {
                     const { GIFOptimizer } = require('../utils/gifOptimizer');
                     const optimizedGif = await GIFOptimizer.createOptimizedGIF(framesToProcess, {
-                        width: this.canvasWidth,
-                        height: this.canvasHeight,
+                        width: gifWidth,
+                        height: gifHeight,
                         quality: 'auto',
                         optimize: true,
                         delay: Math.round(1000 / this.frameRate)
@@ -3373,7 +3404,7 @@ class RealWebGLCompiler {
             }
             
             // Système standard (fallback)
-            const encoder = new GIFEncoder(this.canvasWidth, this.canvasHeight);
+            const encoder = new GIFEncoder(gifWidth, gifHeight);
             
             // Configuration du GIF optimisée
             const fileStream = fsSync.createWriteStream(gifPath);
