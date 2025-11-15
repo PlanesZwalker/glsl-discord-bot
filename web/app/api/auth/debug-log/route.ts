@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+
 // Endpoint pour logger les erreurs d'authentification côté client
 export async function POST(request: Request) {
   try {

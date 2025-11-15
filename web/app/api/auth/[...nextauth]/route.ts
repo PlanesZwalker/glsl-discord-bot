@@ -2,6 +2,9 @@ import NextAuth from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 
+// Force dynamic rendering - NextAuth nécessite des sessions dynamiques
+export const dynamic = 'force-dynamic'
+
 const handler = NextAuth(authOptions)
 
 // Add error handling wrapper with better error capture

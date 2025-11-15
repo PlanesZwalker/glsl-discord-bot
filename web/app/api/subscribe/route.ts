@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 
+// Force dynamic rendering - cette route nécessite une session utilisateur
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: Request) {
     try {
         const session = await getServerSession(authOptions)

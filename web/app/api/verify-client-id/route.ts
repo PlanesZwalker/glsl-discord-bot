@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+// Force dynamic rendering - cette route fait des appels API externes
+export const dynamic = 'force-dynamic'
+
 /**
  * Endpoint pour vérifier si le Client ID Discord est valide
  * Vérifie que l'application Discord existe et que le bot est configuré

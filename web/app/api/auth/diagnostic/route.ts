@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+// Force dynamic rendering - cette route vérifie les variables d'environnement
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   // Check environment variables (without exposing secrets)
   const checks = {

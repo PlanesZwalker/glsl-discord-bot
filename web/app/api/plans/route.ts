@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+// Force dynamic rendering - cette route ne peut pas être statique
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
     try {
         const apiUrl = process.env.API_URL || 'https://glsl-discord-bot.onrender.com'

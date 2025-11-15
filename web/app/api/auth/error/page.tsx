@@ -1,5 +1,8 @@
 'use client'
 
+// Force dynamic rendering - cette page nécessite des paramètres de requête dynamiques
+export const dynamic = 'force-dynamic'
+
 import { useSearchParams } from 'next/navigation'
 import { useLocale } from '@/hooks/useLocale'
 import Link from 'next/link'

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { shaderCodes } from '@/lib/shaderCodes'
 
+// Force dynamic rendering - cette route utilise des paramètres dynamiques
+export const dynamic = 'force-dynamic'
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { name: string } }

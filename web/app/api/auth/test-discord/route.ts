@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 
+// Force dynamic rendering - cette route fait des appels API externes
+export const dynamic = 'force-dynamic'
+
 /**
  * Test endpoint to verify Discord OAuth credentials
  * This makes a test request to Discord API to verify the credentials are valid
