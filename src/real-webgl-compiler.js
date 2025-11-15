@@ -14,6 +14,8 @@ const { getShaderCache } = require('./shader-cache');
 const { getMetrics } = require('./metrics');
 const { WebGLSecurity } = require('./webgl-security');
 const { escapeJSStringForTemplate } = require('./utils/jsEscape');
+const { Watermark } = require('./utils/watermark');
+const { MP4Exporter } = require('./utils/mp4Exporter');
 
 class RealWebGLCompiler {
     constructor() {
@@ -3114,6 +3116,31 @@ class RealWebGLCompiler {
                     console.log(`✅ GIF généré: ${gifPath}`);
                 } else {
                     console.warn('⚠️ Échec de la génération du GIF');
+                }
+                
+                // Export MP4 pour les utilisateurs premium (Pro et Studio)
+                let mp4Path = null;
+                if (options.userId && options.database) {
+                    try {
+                        const userPlan = await options.database.getUserPlan(options.userId);
+                        if (userPlan === 'pro' || userPlan === 'studio') {
+                            console.log('🎥 Plan Premium détecté - Export MP4...');
+                            try {
+                                const mp4OutputPath = path.join(frameDirectory, 'animation.mp4');
+                                mp4Path = await MP4Exporter.exportToMP4(frameDirectory, mp4OutputPath, {
+                                    width: compilationWidth,
+                                    height: compilationHeight,
+                                    frameRate: this.frameRate
+                                });
+                                console.log(`✅ MP4 exporté: ${mp4Path}`);
+                            } catch (mp4Error) {
+                                console.warn('⚠️ Erreur export MP4 (continuation sans MP4):', mp4Error.message);
+                                // Continuer sans MP4 si l'export échoue
+                            }
+                        }
+                    } catch (planError) {
+                        console.warn('⚠️ Erreur vérification plan pour MP4:', planError.message);
+                    }
                 }
             }
 
