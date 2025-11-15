@@ -157,7 +157,7 @@ export function ShaderGallery() {
   const shaderCategories = getShaderCategories(locale)
 
   const getGifUrl = (shaderName: string) => {
-    return `https://raw.githubusercontent.com/PlanesZwalker/glsl-discord-bot/master/docs/gifs/${shaderName}.gif`
+    return `https://raw.githubusercontent.com/PlanesZwalker/glsl-discord-bot/master/assets/presets/${shaderName}.gif`
   }
 
   const fetchShaderCode = async (shaderName: string) => {

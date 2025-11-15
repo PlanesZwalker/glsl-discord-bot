@@ -70,7 +70,7 @@ export async function GET(
     // Check if image_path is a file (GIF) or a directory (frames)
     const imagePath = shader.image_path
     
-    // IMPORTANT: Ne jamais lire depuis docs/gifs/ en production (Vercel)
+    // IMPORTANT: Les GIFs presets sont maintenant dans assets/presets/
     // Ces fichiers sont servis depuis GitHub raw et ne doivent pas être dans le bundle
     // Vérifier AVANT toute opération fs pour éviter que Vercel les inclue
     if (imagePath && (imagePath.includes('docs/gifs/') || imagePath.includes('docs\\gifs\\'))) {

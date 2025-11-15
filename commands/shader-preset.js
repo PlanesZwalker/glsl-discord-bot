@@ -83,12 +83,37 @@ module.exports = {
                 return;
             }
 
-            // Compile the shader with preset name, user ID, and database for watermark check
-            const result = await compiler.compileShader(shaderCode, {
-                presetName: presetName,
-                userId: interaction.user.id,
-                database: database  // Passer la database pour vérifier le plan et ajouter watermark
-            });
+            // Pour les utilisateurs free, utiliser les GIFs précompilés si disponibles
+            const fs = require('fs');
+            const path = require('path');
+            const presetGifPath = path.join(process.cwd(), 'assets', 'presets', `${presetName}.gif`);
+            const userPlan = await database.getUserPlan(interaction.user.id);
+            
+            let result = null;
+            let usePresetGif = false;
+            
+            // Si utilisateur free et GIF preset existe, l'utiliser directement
+            if (userPlan === 'free' && fs.existsSync(presetGifPath)) {
+                console.log(`📦 Utilisation du GIF preset précompilé pour ${presetName} (plan free)`);
+                usePresetGif = true;
+                result = {
+                    success: true,
+                    gifPath: presetGifPath,
+                    frameDirectory: null,
+                    metadata: {
+                        cached: true,
+                        preset: presetName,
+                        usingPresetGif: true
+                    }
+                };
+            } else {
+                // Compiler le shader normalement (pour Pro/Studio ou si GIF preset n'existe pas)
+                result = await compiler.compileShader(shaderCode, {
+                    presetName: presetName,
+                    userId: interaction.user.id,
+                    database: database  // Passer la database pour vérifier le plan et ajouter watermark
+                });
+            }
 
             if (!result.success) {
                 await interaction.editReply({
@@ -97,14 +122,17 @@ module.exports = {
                 return;
             }
 
-            // Save to database
-            const shaderId = await database.saveShader({
-                code: shaderCode,
-                userId: interaction.user.id,
-                userName: interaction.user.username,
-                imagePath: result.frameDirectory,
-                gifPath: result.gifPath
-            });
+            // Save to database (seulement si pas de GIF preset utilisé)
+            let shaderId = null;
+            if (!usePresetGif) {
+                shaderId = await database.saveShader({
+                    code: shaderCode,
+                    userId: interaction.user.id,
+                    userName: interaction.user.username,
+                    imagePath: result.frameDirectory,
+                    gifPath: result.gifPath
+                });
+            }
 
             await database.updateUserStats(interaction.user.id, interaction.user.username);
             

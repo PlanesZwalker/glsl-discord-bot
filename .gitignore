@@ -106,10 +106,13 @@ web/**/*.test.tsx
 web/**/*.spec.ts
 web/**/*.spec.tsx
 
-# Documentation Markdown files (except README.md and docs/)
+# Documentation Markdown files (except README.md)
 *.md
 !README.md
-!docs/**/*.md
+# Exclude all documentation files in docs/ (keep them local, not versioned)
+docs/*.md
+docs/**/*.md
+!docs/README.md
 web/README_LOCAL.md
 
 # Storage - Tous les fichiers générés (frames, GIFs, MP4s, cache)

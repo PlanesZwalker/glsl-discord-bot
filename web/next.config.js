@@ -8,7 +8,7 @@ const nextConfig = {
   // Note: outputFileTracingExcludes ne fonctionne pas toujours correctement
   // Les GIFs sont servis depuis GitHub raw dans ShaderGallery, pas depuis le système de fichiers
   // Note: serverComponentsExternalPackages n'est pas disponible dans Next.js 13.5.6
-  // Le .vercelignore à la racine exclut déjà docs/gifs/ efficacement
+  // Les GIFs presets sont maintenant dans assets/presets/
   // better-sqlite3 est utilisé dans les routes API mais n'est pas un problème de taille
   
   experimental: {

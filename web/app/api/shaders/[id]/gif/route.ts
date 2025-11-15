@@ -67,14 +67,14 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    // IMPORTANT: Ne jamais lire depuis docs/gifs/ en production (Vercel)
+    // IMPORTANT: Les GIFs presets sont maintenant dans assets/presets/
     // Ces fichiers sont servis depuis GitHub raw et ne doivent pas être dans le bundle
     // Vérifier AVANT toute opération fs pour éviter que Vercel les inclue
-    if (shader.gif_path && (shader.gif_path.includes('docs/gifs/') || shader.gif_path.includes('docs\\gifs\\'))) {
-      console.warn(`[GIF API] Attempted to read from docs/gifs/ - redirecting to GitHub raw`)
+    if (shader.gif_path && (shader.gif_path.includes('assets/presets/') || shader.gif_path.includes('assets\\presets\\'))) {
+      console.warn(`[GIF API] Preset GIF detected - redirecting to GitHub raw`)
       const shaderName = path.basename(shader.gif_path, path.extname(shader.gif_path))
       return NextResponse.redirect(
-        `https://raw.githubusercontent.com/PlanesZwalker/glsl-discord-bot/master/docs/gifs/${shaderName}.gif`,
+        `https://raw.githubusercontent.com/PlanesZwalker/glsl-discord-bot/master/assets/presets/${shaderName}.gif`,
         302
       )
     }
