@@ -210,26 +210,8 @@ module.exports = {
                 }
             }
 
-            // Respond with success and animation
-            const embed = CustomEmbedBuilder.shaderCompiled({
-                id: shaderId,
-                username: interaction.user.username,
-                duration: result.metadata?.duration,
-                frames: result.metadata?.frames,
-                resolution: result.metadata?.resolution,
-                presetName: shaderName || null,
-                cached: result.metadata?.cached,
-                gifUrl: result.gifPath ? `attachment://animation.gif` : null
-            });
-
-            if (shaderName) {
-                embed.setFooter({ text: `Utilisez /reuse ${shaderName} ou /reuse ${shaderId} pour réutiliser ce shader` });
-            } else {
-                embed.setFooter({ text: `Utilisez /reuse ${shaderId} pour réutiliser ce shader` });
-            }
-            
+            // Respond with ONLY the animated GIF - no text, no embed
             await interaction.editReply({
-                embeds: [embed],
                 files: files
             });
 

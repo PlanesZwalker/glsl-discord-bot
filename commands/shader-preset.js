@@ -169,20 +169,8 @@ module.exports = {
             
             console.log(`📎 Fichiers à attacher: ${files.length} fichier(s)`);
 
-            // Respond with success and animation
-            const embed = CustomEmbedBuilder.shaderCompiled({
-                id: shaderId,
-                username: interaction.user.username,
-                duration: result.metadata?.duration,
-                frames: result.metadata?.frames,
-                resolution: result.metadata?.resolution,
-                presetName: presetName,
-                cached: result.metadata?.cached,
-                gifUrl: result.gifPath ? `attachment://animation.gif` : null
-            });
-            
+            // Respond with ONLY the animated GIF - no text, no embed
             await interaction.editReply({
-                embeds: [embed],
                 files: files
             });
 

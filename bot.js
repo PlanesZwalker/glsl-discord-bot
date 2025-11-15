@@ -14,8 +14,15 @@ const fs = require('fs');
 const path = require('path');
 const nacl = require('tweetnacl');
 const crypto = require('crypto');
-// Stripe - seulement si la clé est définie
-const stripe = process.env.STRIPE_SECRET_KEY ? require('stripe')(process.env.STRIPE_SECRET_KEY) : null;
+// Stripe - seulement si la clé est définie (require conditionnel)
+let stripe = null;
+if (process.env.STRIPE_SECRET_KEY) {
+    try {
+        stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+    } catch (error) {
+        console.warn('⚠️ Stripe non disponible:', error.message);
+    }
+}
 
 // Configuration
 const config = require('./production.config.js');
@@ -4907,10 +4914,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                             attachments: attachmentsArray  // ← Déclaration des fichiers
                                         };
                                         
-                                        console.log(`📤 Payload: ${filesWithBuffers.length} fichier(s), ${finalEmbeds.length} embed(s)`);
-                                        console.log(`📤 Image URL: attachment://${fileName}`);
+                                        console.log(`📤 Payload: ${filesWithBuffers.length} fichier(s) - GIF uniquement, pas d'embed`);
                                         
-                                        // 5. Envoyer avec rest.patch
+                                        // 4. Envoyer avec rest.patch - SEULEMENT le GIF, pas d'embed
                                         await rest.patch(
                                             Routes.webhookMessage(applicationId, interactionToken, '@original'),
                                             {
@@ -4919,7 +4925,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                             }
                                         );
                                         
-                                        console.log('✅ ✅ ✅ SUCCÈS avec buffers explicites + embed! GIF visible directement! ✅ ✅ ✅');
+                                        console.log('✅ ✅ ✅ SUCCÈS! GIF animé envoyé directement (sans texte ni embed)! ✅ ✅ ✅');
                                     }
                                 },
                                 // STRATÉGIE 1: Utiliser directement les AttachmentBuilder originaux sans embed
