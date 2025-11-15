@@ -8,9 +8,9 @@
 - ✅ Export MP4 pour utilisateurs premium (Pro/Studio)
 - ✅ Résolutions HD/4K selon plan (Free: 320x240, Pro: 1920x1080, Studio: 3840x2160)
 - ✅ API pour développeurs (Studio plan) - Endpoints `/api/v1/compile`, `/api/v1/stats`, `/api/v1/presets`
-- ⏳ Stockage cloud illimité (Pro/Studio) - Intégration S3
+- ✅ Stockage cloud illimité (Pro/Studio) - Intégration S3 complète
 - ⏳ Collaboration en temps réel (Studio plan)
-- ⏳ Export multi-format (Studio plan) - WebP, PNG séquence
+- ✅ Export multi-format (Studio plan) - WebP animé et PNG séquence
 - ✅ Priorité de compilation (Pro/Studio) - Système de queue avec priorité
 - ✅ Durée GIF jusqu'à 10 secondes (Pro/Studio plan)
 - ✅ Nettoyage automatique après 7 jours (Free plan) - CleanupManager avec cron job
@@ -62,18 +62,18 @@
   - `bot.js` - Routes API pour partage
   - `web/components/ShaderCollaboration.tsx` - Interface web
 
-### 4. Export Multi-format (Studio Plan)
-- **Priorité**: Moyenne
+### 4. Export Multi-format (Studio Plan) ✅ IMPLÉMENTÉ
+- **Statut**: ✅ Complètement implémenté
 - **Description**: Support WebP, MP4, GIF, PNG en plus du format actuel
 - **Fonctionnalités**:
-  - Export WebP animé
-  - Export MP4 (déjà implémenté, à tester)
-  - Export PNG séquence
-  - Choix du format à la compilation
-- **Fichiers à créer/modifier**:
-  - `src/utils/webpExporter.js` - Export WebP
-  - `src/real-webgl-compiler.js` - Ajouter options de format
-  - `commands/shader.js` - Ajouter option format
+  - ✅ Export WebP animé (automatique pour Studio)
+  - ✅ Export MP4 (Pro/Studio)
+  - ✅ Export PNG séquence (sur demande, format: png-sequence)
+  - ✅ Choix du format à la compilation via option `/shader format:webp` ou `format:png-sequence`
+- **Fichiers implémentés**:
+  - ✅ `src/utils/webpExporter.js` - Export WebP animé avec ffmpeg
+  - ✅ `src/real-webgl-compiler.js` - Support format dans compileShader (lignes 3162-3219)
+  - ✅ `commands/shader.js` - Option format ajoutée (lignes 30-37, 237-283)
 
 ### 5. Priorité de Compilation (Pro/Studio) ✅ IMPLÉMENTÉ
 - **Statut**: ✅ Complètement implémenté
