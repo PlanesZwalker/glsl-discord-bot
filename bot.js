@@ -4802,11 +4802,20 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                     name: 'rest.patch_file_only_no_embed',
                                     desc: 'Envoyer le GIF comme fichier attaché sans embed (meilleure compatibilité GIF animé)',
                                     test: async () => {
-                                        // Lire explicitement les fichiers en Buffer avant de les passer à rest.patch
-                                        // Discord.js ne lit pas correctement les fichiers depuis les chemins absolus dans un environnement serverless
-                                        // Solution: Lire les fichiers en Buffer explicitement
-                                        const fileBuffers = await Promise.all(filePaths.map(async (fp) => {
+                                        // Utiliser directement l'API Discord avec FormData pour éviter les problèmes de discord.js
+                                        // Lire explicitement les fichiers en Buffer
+                                        const FormData = require('form-data');
+                                        const formData = new FormData();
+                                        
+                                        // Payload JSON vide - seulement le fichier
+                                        const payload = {};
+                                        formData.append('payload_json', JSON.stringify(payload));
+                                        
+                                        // Ajouter les fichiers
+                                        for (let i = 0; i < filePaths.length; i++) {
+                                            const fp = filePaths[i];
                                             let fileData;
+                                            
                                             if (fp.path && fs.existsSync(fp.path)) {
                                                 // Lire le fichier en Buffer depuis le chemin
                                                 fileData = fs.readFileSync(fp.path);
@@ -4827,20 +4836,27 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                                 throw new Error(`Impossible de lire le fichier: ${fp.name}`);
                                             }
                                             
-                                            return {
-                                                attachment: fileData,
-                                                name: fp.name || 'animation.gif'
-                                            };
-                                        }));
+                                            // Ajouter le fichier au FormData avec le bon format
+                                            formData.append(`files[${i}]`, fileData, {
+                                                filename: fp.name || 'animation.gif',
+                                                contentType: 'image/gif'
+                                            });
+                                        }
                                         
-                                        const restPayload = {
-                                            content: '🎨 Shader Animation'
-                                        };
-                                        
-                                        await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
-                                            body: restPayload,
-                                            files: fileBuffers // Utiliser les buffers lus explicitement
+                                        // Utiliser directement l'API Discord avec fetch
+                                        const webhookUrl = `https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`;
+                                        const response = await fetch(webhookUrl, {
+                                            method: 'PATCH',
+                                            headers: {
+                                                ...formData.getHeaders()
+                                            },
+                                            body: formData
                                         });
+                                        
+                                        if (!response.ok) {
+                                            const errorText = await response.text();
+                                            throw new Error(`Discord API error: ${response.status} ${response.statusText} - ${errorText}`);
+                                        }
                                     }
                                 },
                                 // STRATÉGIE 1: Double édition (workaround du bug Discord connu)
