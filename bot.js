@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const nacl = require('tweetnacl');
 const crypto = require('crypto');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 // Configuration
 const config = require('./production.config.js');
@@ -22,7 +23,8 @@ const config = require('./production.config.js');
 const DISCORD_PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY || '342edad4bf8b7107f3f5c2077857f057090582e9841973afe23b05977d36e54a';
 
 // Fonction pour vérifier la signature Discord avec body brut
-function verifyDiscordSignatureWithRawBody(signature, timestamp, rawBody) {
+// Utiliser une variable pour permettre le mocking dans les tests
+let verifyDiscordSignatureWithRawBody = function verifyDiscordSignatureWithRawBody(signature, timestamp, rawBody) {
     try {
         if (!signature || !timestamp || !rawBody) {
             console.log('⚠️ Paramètres manquants pour vérification:', {
@@ -4807,8 +4809,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                         const FormData = require('form-data');
                                         const formData = new FormData();
                                         
-                                        // Payload JSON vide - seulement le fichier
-                                        const payload = {};
+                                        // Payload JSON avec contenu minimal (Discord rejette les messages complètement vides)
+                                        // Utiliser un espace normal - Discord le trim mais accepte le message avec fichier
+                                        const payload = {
+                                            content: ' ' // Espace normal - Discord le trim mais accepte le message
+                                        };
                                         formData.append('payload_json', JSON.stringify(payload));
                                         
                                         // Ajouter les fichiers
@@ -5795,6 +5800,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                     return res.status(400).send('Bad Request: Missing or invalid body');
                 }
                 
+                // Utiliser la variable verifyDiscordSignatureWithRawBody qui peut être mockée dans les tests
                 const isValid = verifyDiscordSignatureWithRawBody(signature, timestamp, rawBody);
                 
                 if (!isValid) {
@@ -6040,6 +6046,116 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         });
         
         // Servir les fichiers GIF et images
+        // ==================== ROUTES DE MONÉTISATION ====================
+        const { SubscriptionManager, PLANS } = require('./src/subscription-manager');
+        const subscriptionManager = new SubscriptionManager(this.database);
+
+        // Route pour récupérer les plans disponibles
+        app.get('/api/plans', (req, res) => {
+            try {
+                res.json(PLANS);
+            } catch (error) {
+                console.error('❌ Erreur API /api/plans:', error);
+                res.status(500).json({ error: 'Erreur interne du serveur' });
+            }
+        });
+
+        // Route pour créer une session de checkout Stripe
+        app.post('/api/subscribe', async (req, res) => {
+            try {
+                const { userId, userEmail, planId } = req.body;
+
+                if (!userId || !planId) {
+                    return res.status(400).json({ error: 'userId et planId sont requis' });
+                }
+
+                if (!PLANS[planId]) {
+                    return res.status(400).json({ error: 'Plan invalide' });
+                }
+
+                const session = await subscriptionManager.createCheckoutSession(
+                    userId,
+                    userEmail || null,
+                    planId
+                );
+
+                res.json({ url: session.url, sessionId: session.sessionId });
+            } catch (error) {
+                console.error('❌ Erreur API /api/subscribe:', error);
+                res.status(500).json({ error: error.message || 'Erreur interne du serveur' });
+            }
+        });
+
+        // Route pour récupérer le plan d'un utilisateur
+        app.get('/api/user/plan', async (req, res) => {
+            try {
+                const userId = req.query.userId;
+                if (!userId) {
+                    return res.status(400).json({ error: 'userId est requis' });
+                }
+
+                const plan = await this.database.getUserPlan(userId);
+                const subscription = await this.database.getActiveSubscription(userId);
+                const usageStats = await this.database.getTodayUsageStats(userId);
+
+                res.json({
+                    plan,
+                    subscription: subscription ? {
+                        status: subscription.status,
+                        current_period_end: subscription.current_period_end,
+                        cancel_at_period_end: subscription.cancel_at_period_end === 1
+                    } : null,
+                    usage: usageStats
+                });
+            } catch (error) {
+                console.error('❌ Erreur API /api/user/plan:', error);
+                res.status(500).json({ error: 'Erreur interne du serveur' });
+            }
+        });
+
+        // Route pour annuler un abonnement
+        app.post('/api/subscription/cancel', async (req, res) => {
+            try {
+                const { userId } = req.body;
+                if (!userId) {
+                    return res.status(400).json({ error: 'userId est requis' });
+                }
+
+                const result = await subscriptionManager.cancelSubscription(userId);
+                res.json(result);
+            } catch (error) {
+                console.error('❌ Erreur API /api/subscription/cancel:', error);
+                res.status(500).json({ error: error.message || 'Erreur interne du serveur' });
+            }
+        });
+
+        // Webhook Stripe pour gérer les événements
+        app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+            try {
+                const sig = req.headers['stripe-signature'];
+                const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+                if (!webhookSecret) {
+                    console.error('❌ STRIPE_WEBHOOK_SECRET non configuré');
+                    return res.status(500).json({ error: 'Webhook secret non configuré' });
+                }
+
+                let event;
+                try {
+                    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+                } catch (err) {
+                    console.error('❌ Erreur vérification signature webhook:', err.message);
+                    return res.status(400).send(`Webhook Error: ${err.message}`);
+                }
+
+                await subscriptionManager.handleWebhook(event);
+                res.json({ received: true });
+            } catch (error) {
+                console.error('❌ Erreur webhook Stripe:', error);
+                res.status(500).json({ error: 'Erreur traitement webhook' });
+            }
+        });
+
         app.get('/shaders/assets/:filename', (req, res) => {
             const filename = req.params.filename;
             const filePath = path.join(process.cwd(), 'temp', filename);
