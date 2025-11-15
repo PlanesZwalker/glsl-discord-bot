@@ -16,6 +16,7 @@ const { WebGLSecurity } = require('./webgl-security');
 const { escapeJSStringForTemplate } = require('./utils/jsEscape');
 const { Watermark } = require('./utils/watermark');
 const { MP4Exporter } = require('./utils/mp4Exporter');
+const { WebPExporter } = require('./utils/webpExporter');
 
 class RealWebGLCompiler {
     constructor() {
@@ -2535,6 +2536,8 @@ class RealWebGLCompiler {
         const userId = options.userId || null;
         const jobId = options.jobId || `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         let mp4Path = null; // Initialiser mp4Path au début pour éviter ReferenceError
+        let webpPath = null; // Initialiser webpPath pour export WebP (Studio plan)
+        let pngSequencePath = null; // Initialiser pngSequencePath pour export PNG séquence (Studio plan)
         
         // Déterminer la résolution et la durée selon le plan de l'utilisateur
         let compilationWidth = this.canvasWidth;
@@ -3155,6 +3158,65 @@ class RealWebGLCompiler {
                         console.warn('⚠️ Erreur vérification plan pour MP4:', planError.message);
                     }
                 }
+
+                // Export WebP animé pour Studio plan uniquement
+                if (options.userId && options.database) {
+                    try {
+                        const userPlan = await options.database.getUserPlan(options.userId);
+                        if (userPlan === 'studio' && (options.format === 'webp' || !options.format)) {
+                            console.log('🎨 Plan Studio détecté - Export WebP animé...');
+                            try {
+                                const pathConfig = require('./config/paths');
+                                const shaderId = path.basename(frameDirectory).replace('shader_', '');
+                                const webpOutputPath = path.join(pathConfig.gifsDir, `shader_${shaderId}_${Date.now()}.webp`);
+                                webpPath = await WebPExporter.exportToWebP(frameDirectory, webpOutputPath, {
+                                    width: compilationWidth,
+                                    height: compilationHeight,
+                                    frameRate: this.frameRate,
+                                    quality: 85 // Qualité élevée pour Studio
+                                });
+                                console.log(`✅ WebP animé exporté: ${webpPath}`);
+                            } catch (webpError) {
+                                console.warn('⚠️ Erreur export WebP (continuation sans WebP):', webpError.message);
+                            }
+                        }
+                    } catch (planError) {
+                        console.warn('⚠️ Erreur vérification plan pour WebP:', planError.message);
+                    }
+                }
+
+                // Export PNG séquence pour Studio plan uniquement
+                if (options.userId && options.database) {
+                    try {
+                        const userPlan = await options.database.getUserPlan(options.userId);
+                        if (userPlan === 'studio' && options.format === 'png-sequence') {
+                            console.log('🖼️ Plan Studio - Export PNG séquence...');
+                            try {
+                                const pathConfig = require('./config/paths');
+                                const shaderId = path.basename(frameDirectory).replace('shader_', '');
+                                const pngSequenceDir = path.join(pathConfig.framesDir, `shader_${shaderId}_png_sequence_${Date.now()}`);
+                                await fs.mkdir(pngSequenceDir, { recursive: true });
+                                
+                                // Copier les frames dans le dossier de séquence
+                                const frameFiles = await fs.readdir(frameDirectory);
+                                const pngFrames = frameFiles.filter(f => f.endsWith('.png')).sort();
+                                
+                                for (let i = 0; i < pngFrames.length; i++) {
+                                    const sourceFrame = path.join(frameDirectory, pngFrames[i]);
+                                    const destFrame = path.join(pngSequenceDir, `frame_${(i + 1).toString().padStart(4, '0')}.png`);
+                                    await fs.copyFile(sourceFrame, destFrame);
+                                }
+                                
+                                pngSequencePath = pngSequenceDir;
+                                console.log(`✅ PNG séquence exporté: ${pngSequencePath} (${pngFrames.length} frames)`);
+                            } catch (pngError) {
+                                console.warn('⚠️ Erreur export PNG séquence (continuation sans PNG):', pngError.message);
+                            }
+                        }
+                    } catch (planError) {
+                        console.warn('⚠️ Erreur vérification plan pour PNG séquence:', planError.message);
+                    }
+                }
             }
 
             // Créer un fichier de métadonnées
@@ -3218,6 +3280,8 @@ class RealWebGLCompiler {
                 frameDirectory: frameDirectory,
                 gifPath: gifPath,
                 mp4Path: mp4Path || null,  // Ajouter le chemin MP4 si disponible
+                webpPath: webpPath || null,  // Ajouter le chemin WebP si disponible (Studio)
+                pngSequencePath: pngSequencePath || null,  // Ajouter le chemin PNG séquence si disponible (Studio)
                 metadata: metadata,
                 error: null
             };

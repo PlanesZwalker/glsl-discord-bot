@@ -26,7 +26,15 @@ module.exports = {
                 .setDescription('URL of texture iChannel3 (optional)'))
         .addStringOption(option =>
             option.setName('name')
-                .setDescription('Name for this shader (optional, for search)')),
+                .setDescription('Name for this shader (optional, for search)'))
+        .addStringOption(option =>
+            option.setName('format')
+                .setDescription('Export format (Studio plan only: webp, png-sequence)')
+                .addChoices(
+                    { name: 'GIF (default)', value: 'gif' },
+                    { name: 'WebP animated', value: 'webp' },
+                    { name: 'PNG sequence', value: 'png-sequence' }
+                )),
     
     async execute(interaction, { compiler, database, bot }) {
         await interaction.deferReply();
@@ -137,11 +145,12 @@ module.exports = {
             // Utiliser le code nettoyé si disponible
             const codeToCompile = validation.sanitized || shaderCode;
 
-            // Compile shader with textures, user ID, and database for watermark check
+            // Compile shader with textures, user ID, database, and format option
             const result = await compiler.compileShader(codeToCompile, {
                 textures: textureUrls.length > 0 ? textureUrls : null,
                 userId: interaction.user.id,
-                database: database  // Passer la database pour vérifier le plan et ajouter watermark
+                database: database,  // Passer la database pour vérifier le plan et ajouter watermark
+                format: format  // Format d'export (gif, webp, png-sequence)
             });
 
             if (!result.success) {
@@ -225,9 +234,36 @@ module.exports = {
             const path = require('path');
             let files = [];
             
-            // Priority: send animated GIF if available, otherwise first frame
-            if (result.gifPath) {
-                // Résoudre le chemin absolu pour s'assurer qu'il est correct
+            // Sélectionner le fichier selon le format demandé (Studio plan)
+            if (format === 'webp' && result.webpPath) {
+                // Envoyer WebP animé (Studio plan)
+                const webpPathResolved = path.isAbsolute(result.webpPath) 
+                    ? result.webpPath 
+                    : path.resolve(process.cwd(), result.webpPath);
+                
+                if (fs.existsSync(webpPathResolved)) {
+                    console.log(`✅ Attachement du WebP: ${webpPathResolved}`);
+                    files.push(new AttachmentBuilder(webpPathResolved, { name: 'animation.webp' }));
+                }
+            } else if (format === 'png-sequence' && result.pngSequencePath) {
+                // Envoyer la première frame de la séquence PNG (Studio plan)
+                const pngSequenceDir = path.isAbsolute(result.pngSequencePath) 
+                    ? result.pngSequencePath 
+                    : path.resolve(process.cwd(), result.pngSequencePath);
+                
+                if (fs.existsSync(pngSequenceDir)) {
+                    const frameFiles = fs.readdirSync(pngSequenceDir)
+                        .filter(f => f.endsWith('.png'))
+                        .sort();
+                    
+                    if (frameFiles.length > 0) {
+                        const firstFrame = path.join(pngSequenceDir, frameFiles[0]);
+                        console.log(`✅ Attachement de la première frame PNG: ${firstFrame}`);
+                        files.push(new AttachmentBuilder(firstFrame, { name: 'frame_0001.png' }));
+                    }
+                }
+            } else if (result.gifPath) {
+                // Par défaut: envoyer GIF animé
                 const gifPathResolved = path.isAbsolute(result.gifPath) 
                     ? result.gifPath 
                     : path.resolve(process.cwd(), result.gifPath);
