@@ -6265,8 +6265,17 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         
         // Servir les fichiers GIF et images
         // ==================== ROUTES DE MONÉTISATION ====================
-        const { SubscriptionManager, PLANS } = require('./src/subscription-manager');
-        const subscriptionManager = new SubscriptionManager(this.database);
+        // Système de monétisation Stripe (seulement si configuré)
+        let subscriptionManager = null;
+        let PLANS = {};
+        try {
+            const subscriptionModule = require('./src/subscription-manager');
+            subscriptionManager = new subscriptionModule.SubscriptionManager(this.database);
+            PLANS = subscriptionModule.PLANS;
+            console.log('✅ Subscription Manager initialisé');
+        } catch (error) {
+            console.warn('⚠️ Subscription Manager non disponible:', error.message);
+        }
 
         // Route pour récupérer les plans disponibles
         app.get('/api/plans', (req, res) => {

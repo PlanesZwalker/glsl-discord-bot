@@ -2,7 +2,8 @@
  * Subscription Manager - Gestion des abonnements et intégration Stripe
  */
 
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+// Stripe - seulement si la clé est définie
+const stripe = process.env.STRIPE_SECRET_KEY ? require('stripe')(process.env.STRIPE_SECRET_KEY) : null;
 
 // Plans disponibles
 const PLANS = {
@@ -93,6 +94,10 @@ class SubscriptionManager {
      */
     async getOrCreateStripeCustomer(userId, email) {
         try {
+            if (!stripe) {
+                throw new Error('Stripe non configuré');
+            }
+            
             // Vérifier si l'utilisateur a déjà un customer_id
             const user = await this.database.getUserById(userId);
             if (user && user.stripe_customer_id) {
@@ -122,6 +127,11 @@ class SubscriptionManager {
      */
     async handleWebhook(event) {
         try {
+            if (!stripe) {
+                console.error('❌ Stripe non configuré, impossible de traiter le webhook');
+                return { received: false, error: 'Stripe not configured' };
+            }
+            
             switch (event.type) {
                 case 'checkout.session.completed':
                     await this.handleCheckoutCompleted(event.data.object);
@@ -159,6 +169,11 @@ class SubscriptionManager {
      * Gère la complétion d'un checkout
      */
     async handleCheckoutCompleted(session) {
+        if (!stripe) {
+            console.error('❌ Stripe non configuré');
+            return;
+        }
+        
         const userId = session.metadata.userId;
         const planId = session.metadata.plan;
 
@@ -179,6 +194,11 @@ class SubscriptionManager {
      * Gère la mise à jour d'un abonnement
      */
     async handleSubscriptionUpdated(subscription) {
+        if (!stripe) {
+            console.error('❌ Stripe non configuré');
+            return;
+        }
+        
         const customerId = subscription.customer;
         const customer = await stripe.customers.retrieve(customerId);
         const userId = customer.metadata.userId;
@@ -204,6 +224,11 @@ class SubscriptionManager {
      * Gère la suppression d'un abonnement
      */
     async handleSubscriptionDeleted(subscription) {
+        if (!stripe) {
+            console.error('❌ Stripe non configuré');
+            return;
+        }
+        
         const customerId = subscription.customer;
         const customer = await stripe.customers.retrieve(customerId);
         const userId = customer.metadata.userId;
@@ -286,6 +311,10 @@ class SubscriptionManager {
      */
     async cancelSubscription(userId) {
         try {
+            if (!stripe) {
+                throw new Error('Stripe non configuré');
+            }
+            
             const subscription = await this.database.getActiveSubscription(userId);
             if (!subscription || !subscription.stripe_subscription_id) {
                 throw new Error('Aucun abonnement actif trouvé');
