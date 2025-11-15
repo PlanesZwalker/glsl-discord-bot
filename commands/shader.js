@@ -145,6 +145,9 @@ module.exports = {
             // Utiliser le code nettoyé si disponible
             const codeToCompile = validation.sanitized || shaderCode;
 
+            // Get optional format
+            const format = interaction.options.getString('format') || 'gif';
+
             // Compile shader with textures, user ID, database, and format option
             const result = await compiler.compileShader(codeToCompile, {
                 textures: textureUrls.length > 0 ? textureUrls : null,

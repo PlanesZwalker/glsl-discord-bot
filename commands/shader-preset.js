@@ -168,8 +168,6 @@ module.exports = {
 
             // Prepare response with animation
             const { AttachmentBuilder } = require('discord.js');
-            const fs = require('fs');
-            const path = require('path');
             let files = [];
             
             console.log(`🔍 Résultat compilation:`, {
