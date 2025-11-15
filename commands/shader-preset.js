@@ -122,6 +122,30 @@ module.exports = {
                 return;
             }
 
+            // Upload vers S3 si utilisateur Pro/Studio et S3 configuré (seulement si pas de GIF preset)
+            let cloudUrl = null;
+            let cloudMp4Url = null;
+            
+            if (!usePresetGif && bot && bot.cloudStorage && bot.cloudStorage.isAvailable()) {
+                try {
+                    const userPlan = await database.getUserPlan(interaction.user.id);
+                    if (bot.cloudStorage.canUseCloudStorage(userPlan)) {
+                        console.log(`☁️ Upload preset vers S3 pour utilisateur ${userPlan}...`);
+                        const cloudResult = await bot.cloudStorage.uploadShader({
+                            id: null,
+                            userId: interaction.user.id,
+                            gifPath: result.gifPath,
+                            mp4Path: result.mp4Path,
+                            frameDirectory: result.frameDirectory
+                        });
+                        cloudUrl = cloudResult.gifUrl;
+                        cloudMp4Url = cloudResult.mp4Url;
+                    }
+                } catch (cloudError) {
+                    console.warn('⚠️ Erreur upload S3 preset (continuation sans cloud):', cloudError.message);
+                }
+            }
+
             // Save to database (seulement si pas de GIF preset utilisé)
             let shaderId = null;
             if (!usePresetGif) {
@@ -130,7 +154,10 @@ module.exports = {
                     userId: interaction.user.id,
                     userName: interaction.user.username,
                     imagePath: result.frameDirectory,
-                    gifPath: result.gifPath
+                    gifPath: result.gifPath,
+                    mp4Path: result.mp4Path,
+                    cloudUrl: cloudUrl,
+                    cloudMp4Url: cloudMp4Url
                 });
             }
 

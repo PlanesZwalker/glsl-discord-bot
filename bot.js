@@ -191,6 +191,15 @@ class GLSLDiscordBot {
             this.apiRateLimiter = new APIRateLimiter(this.database);
             console.log('✅ Rate limiter API initialisé');
 
+            // Initialiser le stockage cloud S3 (Pro/Studio)
+            const { getCloudStorage } = require('./src/utils/cloudStorage');
+            this.cloudStorage = getCloudStorage();
+            if (this.cloudStorage.isAvailable()) {
+                console.log('✅ Stockage cloud S3 initialisé');
+            } else {
+                console.log('⚠️ Stockage cloud S3 non disponible (variables d\'environnement manquantes)');
+            }
+
             // Initialiser le compilateur WebGL (peut échouer si Chrome n'est pas disponible)
             try {
                 await this.compiler.initialize();

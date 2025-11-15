@@ -86,6 +86,9 @@ class SimpleDatabase {
                     user_name TEXT NOT NULL,
                     image_path TEXT,
                     gif_path TEXT,
+                    cloud_url TEXT,
+                    mp4_path TEXT,
+                    cloud_mp4_url TEXT,
                     name TEXT,
                     preset_name TEXT,
                     likes INTEGER DEFAULT 0,
@@ -270,13 +273,23 @@ class SimpleDatabase {
                 return;
             }
 
-            const { code, userId, userName, imagePath, gifPath, name } = shaderData;
+            const { code, userId, userName, imagePath, gifPath, name, cloudUrl, mp4Path, cloudMp4Url } = shaderData;
             const stmt = this.db.prepare(`
-                INSERT INTO shaders (code, user_id, user_name, image_path, gif_path, name)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO shaders (code, user_id, user_name, image_path, gif_path, cloud_url, mp4_path, cloud_mp4_url, name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
 
-            stmt.run([code, userId, userName, imagePath || null, gifPath || null, name || null], function(err) {
+            stmt.run([
+                code, 
+                userId, 
+                userName, 
+                imagePath || null, 
+                gifPath || null, 
+                cloudUrl || null,
+                mp4Path || null,
+                cloudMp4Url || null,
+                name || null
+            ], function(err) {
                 if (err) {
                     console.error('❌ Erreur sauvegarde shader:', err);
                     reject(err);

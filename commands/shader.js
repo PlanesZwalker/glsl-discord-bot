@@ -28,7 +28,7 @@ module.exports = {
             option.setName('name')
                 .setDescription('Name for this shader (optional, for search)')),
     
-    async execute(interaction, { compiler, database }) {
+    async execute(interaction, { compiler, database, bot }) {
         await interaction.deferReply();
 
         try {
@@ -154,6 +154,30 @@ module.exports = {
             // Get optional name
             const shaderName = interaction.options.getString('name');
 
+            // Upload vers S3 si utilisateur Pro/Studio et S3 configuré
+            let cloudUrl = null;
+            let cloudMp4Url = null;
+            
+            if (bot && bot.cloudStorage && bot.cloudStorage.isAvailable()) {
+                try {
+                    const userPlan = await database.getUserPlan(interaction.user.id);
+                    if (bot.cloudStorage.canUseCloudStorage(userPlan)) {
+                        console.log(`☁️ Upload vers S3 pour utilisateur ${userPlan}...`);
+                        const cloudResult = await bot.cloudStorage.uploadShader({
+                            id: null, // Sera défini après saveShader
+                            userId: interaction.user.id,
+                            gifPath: result.gifPath,
+                            mp4Path: result.mp4Path,
+                            frameDirectory: result.frameDirectory
+                        });
+                        cloudUrl = cloudResult.gifUrl;
+                        cloudMp4Url = cloudResult.mp4Url;
+                    }
+                } catch (cloudError) {
+                    console.warn('⚠️ Erreur upload S3 (continuation sans cloud):', cloudError.message);
+                }
+            }
+
             // Save to database
             const shaderId = await database.saveShader({
                 code: shaderCode,
@@ -161,8 +185,34 @@ module.exports = {
                 userName: interaction.user.username,
                 imagePath: result.frameDirectory,
                 gifPath: result.gifPath,
+                mp4Path: result.mp4Path,
+                cloudUrl: cloudUrl,
+                cloudMp4Url: cloudMp4Url,
                 name: shaderName || null
             });
+
+            // Si cloudUrl n'était pas disponible avant, réessayer avec l'ID
+            if (!cloudUrl && bot && bot.cloudStorage && bot.cloudStorage.isAvailable()) {
+                try {
+                    const userPlan = await database.getUserPlan(interaction.user.id);
+                    if (bot.cloudStorage.canUseCloudStorage(userPlan)) {
+                        const cloudResult = await bot.cloudStorage.uploadShader({
+                            id: shaderId,
+                            userId: interaction.user.id,
+                            gifPath: result.gifPath,
+                            mp4Path: result.mp4Path,
+                            frameDirectory: result.frameDirectory
+                        });
+                        // Mettre à jour la base de données avec les URLs cloud
+                        if (cloudResult.gifUrl || cloudResult.mp4Url) {
+                            // Note: Pour l'instant, on ne met pas à jour car saveShader est déjà fait
+                            // On pourrait ajouter une méthode updateShaderCloudUrls si nécessaire
+                        }
+                    }
+                } catch (cloudError) {
+                    console.warn('⚠️ Erreur upload S3 après saveShader:', cloudError.message);
+                }
+            }
 
             await database.updateUserStats(interaction.user.id, interaction.user.username);
             

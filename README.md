@@ -287,4 +287,3 @@ Le guide complet est disponible sur l'application web : [Guide GLSL/WGSL](https:
 
 ---
 
-**Développé avec ❤️ pour la communauté des shaders GLSL !** 🎨✨
