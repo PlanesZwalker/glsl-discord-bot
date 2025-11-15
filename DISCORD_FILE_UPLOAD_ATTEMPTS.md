@@ -293,37 +293,66 @@
   - **HYPOTHÈSE** : Discord trim l'espace mais accepte le message avec le fichier
   - **STATUT** : ✅ Implémenté
 
-### Tentative 18: Lire explicitement les fichiers en Buffer (2025-11-15) - PRIORITÉ 1
-- **Approche**: Lire explicitement les fichiers en Buffer avec `fs.readFileSync()` avant de les passer à `rest.patch`
+### Tentative 18: Lire explicitement les fichiers en Buffer + Embed avec image.url (2025-11-15) - PRIORITÉ 1
+- **Approche**: Lire explicitement les fichiers en Buffer avec `fs.readFileSync()` + Embed avec `image.url: "attachment://animation.gif"` pour affichage direct
 - **Résultat**: ⏳ En test - PRIORITÉ 1
-- **Date**: 2025-11-15 16:40
+- **Date**: 2025-11-15 16:50
 - **Détails**:
   - **PROBLÈME IDENTIFIÉ** : Discord.js ne peut pas lire correctement les fichiers depuis les `AttachmentBuilder` quand on utilise `rest.patch` avec des webhooks
   - **CAUSE RACINE** : Les `AttachmentBuilder` contiennent des chemins de fichiers, mais discord.js échoue silencieusement à les lire dans un environnement serverless
   - **RÉSULTAT** : Discord ne reçoit que 9 bytes (métadonnées FormData) au lieu de ~2321 KB
-  - **SOLUTION** : Lire explicitement les fichiers en Buffer avec `fs.readFileSync()` avant de les passer à `rest.patch`
+  - **SOLUTION 1** : Lire explicitement les fichiers en Buffer avec `fs.readFileSync()` avant de les passer à `rest.patch`
+  - **SOLUTION 2** : Utiliser un embed avec `image.url: "attachment://animation.gif"` pour que le GIF soit visible directement et animé
   - **CODE** :
     ```javascript
-    // Lire le fichier en Buffer
+    // 1. Lire le fichier en Buffer
     const buffer = fs.readFileSync(filePath);
     const stats = fs.statSync(filePath);
     
-    // Vérifier que la taille correspond
-    console.log(`Taille disque: ${stats.size} bytes`);
-    console.log(`Taille buffer: ${buffer.length} bytes`);
-    console.log(`Match: ${stats.size === buffer.length ? '✅' : '❌'}`);
+    // 2. Créer un embed qui affiche le GIF directement
+    const embed = {
+        title: '🎨 Shader Compilé!',
+        description: 'Votre shader a été compilé avec succès',
+        color: 0x9B59B6,
+        image: {
+            url: 'attachment://animation.gif'  // ← Affichage direct du GIF
+        },
+        footer: {
+            text: 'ShaderBot • Généré en quelques secondes'
+        },
+        timestamp: new Date().toISOString()
+    };
     
-    // Passer le Buffer à rest.patch
+    // 3. Déclarer les attachments
+    const attachmentsArray = [{
+        id: 0,
+        filename: 'animation.gif',
+        description: 'Shader animation GIF'
+    }];
+    
+    // 4. Payload final
+    const payload = {
+        embeds: [embed],
+        attachments: attachmentsArray  // ← Déclaration des fichiers
+    };
+    
+    // 5. Passer le Buffer à rest.patch
     await rest.patch(Routes.webhookMessage(...), {
-        body: { embeds: [...] },
-        files: [{ attachment: buffer, name: fileName }]
+        body: payload,
+        files: [{ attachment: buffer, name: 'animation.gif' }]
     });
     ```
   - **POURQUOI ÇA VA FONCTIONNER** :
     1. Lecture explicite : On lit les fichiers avec `fs.readFileSync()` pour obtenir un `Buffer`
     2. Vérification : On vérifie que la taille du Buffer correspond à la taille sur disque
-    3. Discord.js compatible : Discord.js sait gérer les Buffers nativement
-    4. Logging détaillé : On log chaque étape pour débugger si nécessaire
+    3. Embed avec image.url : Le GIF sera visible directement dans le message, animé automatiquement
+    4. Attachments déclarés : Discord sait quels fichiers sont attachés
+    5. Discord.js compatible : Discord.js sait gérer les Buffers nativement
+  - **RÉSULTAT ATTENDU** :
+    - ✅ Le GIF s'affiche **directement** dans le message Discord
+    - ✅ Il est **animé automatiquement** en loop
+    - ✅ Pas besoin de cliquer ou télécharger
+    - ✅ Discord le joue automatiquement
   - **STATUT** : ⏳ En attente de test sur Render.com
   - **PRIORITÉ** : 1 (première stratégie testée)
 

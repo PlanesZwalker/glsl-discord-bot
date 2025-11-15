@@ -4816,15 +4816,15 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             
                             // Liste de TOUTES les stratégies à tester
                             const strategies = [
-                                // STRATÉGIE 0: Lire explicitement les fichiers en Buffer et utiliser rest.patch
-                                // PRIORITÉ 1: Cette stratégie lit explicitement les fichiers en Buffer pour éviter le problème des 9 bytes
+                                // STRATÉGIE 0: Lire explicitement les fichiers en Buffer et utiliser rest.patch avec embed
+                                // PRIORITÉ 1: Cette stratégie lit explicitement les fichiers en Buffer et utilise un embed pour afficher le GIF directement
                                 {
-                                    name: 'rest.patch_explicit_buffers',
-                                    desc: 'Lire explicitement les fichiers en Buffer et utiliser rest.patch (solution au problème 9 bytes)',
+                                    name: 'rest.patch_explicit_buffers_with_embed',
+                                    desc: 'Lire explicitement les fichiers en Buffer + Embed avec image.url pour affichage direct du GIF animé',
                                     test: async () => {
-                                        console.log('🔄 Tentative avec rest.patch + Buffers explicites...');
+                                        console.log('🔄 STRATÉGIE OPTIMALE: Embed + Attachments avec Buffers explicites...');
                                         
-                                        // Lire tous les fichiers en Buffer
+                                        // 1. Lire tous les fichiers en Buffer
                                         const filesWithBuffers = [];
                                         
                                         for (const file of options.files) {
@@ -4864,22 +4864,53 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                             throw new Error('Aucun fichier valide à envoyer');
                                         }
                                         
-                                        // Créer le payload avec embed minimal
-                                        const fileName = filesWithBuffers[0].name || 'animation.gif';
-                                        const minimalEmbed = [{
-                                            title: '🎨 Shader Animation',
-                                            image: { url: `attachment://${fileName}` },
-                                            color: embedsJson[0]?.color || 0x9B59B6,
-                                            timestamp: new Date().toISOString()
-                                        }];
+                                        // 2. Déclarer les attachments dans le payload
+                                        const attachmentsArray = filesWithBuffers.map((file, index) => ({
+                                            id: index,
+                                            filename: file.name,
+                                            description: 'Shader animation GIF'
+                                        }));
                                         
+                                        // 3. Créer un EMBED qui affiche le GIF directement
+                                        const fileName = filesWithBuffers[0].name || 'animation.gif';
+                                        
+                                        // Utiliser les embeds existants s'ils existent, sinon créer un embed par défaut
+                                        let finalEmbeds;
+                                        if (embedsJson && embedsJson.length > 0) {
+                                            // Si des embeds existent, s'assurer qu'ils ont bien l'image.url
+                                            finalEmbeds = embedsJson.map(embed => {
+                                                // Si l'embed n'a pas d'image, l'ajouter
+                                                if (!embed.image || !embed.image.url) {
+                                                    embed.image = { url: `attachment://${fileName}` };
+                                                }
+                                                return embed;
+                                            });
+                                        } else {
+                                            // Créer un embed par défaut
+                                            finalEmbeds = [{
+                                                title: '🎨 Shader Compilé!',
+                                                description: 'Votre shader a été compilé avec succès',
+                                                color: 0x9B59B6,
+                                                image: {
+                                                    url: `attachment://${fileName}`  // ← Affichage direct du GIF
+                                                },
+                                                footer: {
+                                                    text: 'ShaderBot • Généré en quelques secondes'
+                                                },
+                                                timestamp: new Date().toISOString()
+                                            }];
+                                        }
+                                        
+                                        // 4. Payload final avec embeds ET attachments
                                         const payload = {
-                                            embeds: minimalEmbed
+                                            embeds: finalEmbeds,
+                                            attachments: attachmentsArray  // ← Déclaration des fichiers
                                         };
                                         
-                                        console.log(`📤 Envoi de ${filesWithBuffers.length} fichier(s) avec rest.patch...`);
+                                        console.log(`📤 Payload: ${filesWithBuffers.length} fichier(s), ${finalEmbeds.length} embed(s)`);
+                                        console.log(`📤 Image URL: attachment://${fileName}`);
                                         
-                                        // Envoyer avec rest.patch
+                                        // 5. Envoyer avec rest.patch
                                         await rest.patch(
                                             Routes.webhookMessage(applicationId, interactionToken, '@original'),
                                             {
@@ -4888,7 +4919,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                             }
                                         );
                                         
-                                        console.log('✅ ✅ ✅ SUCCÈS avec buffers explicites! ✅ ✅ ✅');
+                                        console.log('✅ ✅ ✅ SUCCÈS avec buffers explicites + embed! GIF visible directement! ✅ ✅ ✅');
                                     }
                                 },
                                 // STRATÉGIE 1: Utiliser directement les AttachmentBuilder originaux sans embed
