@@ -2988,8 +2988,8 @@ class RealWebGLCompiler {
                                 clip: {
                                     x: 0,
                                     y: 0,
-                                    width: this.canvasWidth,
-                                    height: this.canvasHeight
+                                    width: compilationWidth,
+                                    height: compilationHeight
                                 }
                             }),
                             new Promise((_, reject) => setTimeout(() => reject(new Error('Screenshot timeout')), 5000))
