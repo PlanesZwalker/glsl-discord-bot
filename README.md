@@ -31,7 +31,7 @@
 
 - `/help` - Afficher l'aide complète
 - `/shader <code> [texture0] [texture1] [texture2] [texture3]` - Compiler un shader GLSL ou WGSL personnalisé (génère un GIF animé, textures optionnelles)
-- `/shader-preset <preset>` - Compiler un shader prédéfini parmi les 100 disponibles (autocomplete disponible)
+- `/shader-preset <preset>` - Compiler un shader prédéfini parmi les 100 disponibles (autocomplete disponible). Les utilisateurs free reçoivent directement les GIFs précompilés pour une réponse instantanée !
 - `/shader-generate` - Générer un shader via paramètres (forme, couleur, animation)
 - `/shader-code <name>` - Afficher le code source d'un shader prédéfini
 
@@ -192,7 +192,7 @@ ShaderBot propose trois plans pour répondre à tous les besoins :
 
 ### 🆓 Plan Free
 - **5 compilations/jour**
-- **10 presets/jour**
+- **10 presets/jour** (GIFs précompilés pour performance optimale)
 - **Résolution** : 320x240
 - **Durée GIF** : 2 secondes
 - **Watermark** : Oui
