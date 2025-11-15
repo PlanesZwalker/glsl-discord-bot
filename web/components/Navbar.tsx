@@ -50,6 +50,12 @@ export function Navbar() {
                 </Link>
               )}
               <Link 
+                href="/pricing" 
+                className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+              >
+                Pricing
+              </Link>
+              <Link 
                 href="/install" 
                 className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 px-3 py-2 rounded-md text-sm font-medium transition-colors"
               >
@@ -134,6 +140,13 @@ export function Navbar() {
                 {t.nav.dashboard}
               </Link>
             )}
+            <Link
+              href="/pricing"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              Pricing
+            </Link>
             <Link
               href="/install"
               onClick={() => setMobileMenuOpen(false)}

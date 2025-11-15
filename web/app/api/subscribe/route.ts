@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 
 export async function POST(request: Request) {
@@ -14,16 +14,9 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json()
-        const { userId, userEmail, planId } = body
+        const { planId } = body
 
-        // Vérifier que l'userId correspond à la session
-        if (userId !== session.user.id) {
-            return NextResponse.json(
-                { error: 'Forbidden' },
-                { status: 403 }
-            )
-        }
-
+        // Utiliser l'ID de la session, pas celui du body pour la sécurité
         const apiUrl = process.env.API_URL || 'https://glsl-discord-bot.onrender.com'
         const response = await fetch(`${apiUrl}/api/subscribe`, {
             method: 'POST',
@@ -31,8 +24,8 @@ export async function POST(request: Request) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                userId: userId || session.user.id,
-                userEmail: userEmail || session.user.email,
+                userId: session.user.id,
+                userEmail: session.user.email || null,
                 planId
             })
         })
