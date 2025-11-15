@@ -1,5 +1,58 @@
 # Déploiement sur Serveur Mutualisé OVH
 
+## 💰 Plans OVH Recommandés (< 10€/mois)
+
+### ⭐ Plan Pro (Recommandé) - 7,91€ TTC/mois
+
+**Prix** : 6,59€ HT/mois (7,91€ TTC/mois)
+
+**Caractéristiques** :
+- ✅ **250 Go d'espace disque** (largement suffisant)
+- ✅ **Accès SSH illimité** (NÉCESSAIRE pour le bot)
+- ✅ **Sites web illimités**
+- ✅ **100 adresses e-mail**
+- ✅ **3 bases de données de 400 Mo + 1 base de 2 Go**
+- ✅ **Nom de domaine offert la première année**
+- ✅ **Certificats SSL gratuits illimités**
+- ✅ **Protection anti-DDoS**
+- ✅ **Sauvegardes quotidiennes**
+- ✅ **Trafic illimité**
+- ✅ **Disponibilité 99,9%**
+
+**Pourquoi ce plan ?**
+- ✅ Accès SSH (indispensable pour Node.js et le bot)
+- ✅ Espace disque suffisant (500MB-1GB nécessaires, 250 Go disponibles)
+- ✅ Support OVH pour installer Node.js si nécessaire
+- ✅ Moins de 10€/mois
+
+**Lien** : [OVHcloud - Plan Pro](https://www.ovhcloud.com/fr/web-hosting/shared-hosting/)
+
+---
+
+### ⚠️ Plan Perso (3,95€ TTC/mois) - Non Recommandé
+
+**Prix** : 3,29€ HT/mois (3,95€ TTC/mois)
+
+**Problème** : **Pas d'accès SSH** mentionné dans les caractéristiques standard.
+
+**Si vous avez déjà ce plan** :
+- Vérifier si SSH est disponible (certains comptes l'ont)
+- Sinon, contacter le support OVH pour l'activer
+- Ou passer au plan Pro
+
+---
+
+### ❌ Plan Starter (1,19€ TTC/mois) - Non Adapté
+
+**Prix** : 0,99€ HT/mois (1,19€ TTC/mois)
+
+**Problèmes** :
+- ❌ Pas d'accès SSH
+- ❌ Seulement 1 Go d'espace (limite pour node_modules + Chrome)
+- ❌ Trop limité pour un bot Discord
+
+---
+
 ## ✅ Compatibilité
 
 Un serveur mutualisé OVH peut **parfaitement** héberger le bot Discord !
