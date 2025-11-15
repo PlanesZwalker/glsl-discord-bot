@@ -3204,6 +3204,7 @@ class RealWebGLCompiler {
                 success: true,
                 frameDirectory: frameDirectory,
                 gifPath: gifPath,
+                mp4Path: mp4Path || null,  // Ajouter le chemin MP4 si disponible
                 metadata: metadata,
                 error: null
             };

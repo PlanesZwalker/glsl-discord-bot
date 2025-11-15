@@ -106,7 +106,13 @@ web/**/*.test.tsx
 web/**/*.spec.ts
 web/**/*.spec.tsx
 
-# Documentation Markdown files (except README.md and PROJECT_EXPLANATION.md)
+# Documentation Markdown files (except README.md)
 *.md
 !README.md
-!PROJECT_EXPLANATION.md
+# Exclude documentation files specifically
+MONETIZATION_SETUP.md
+SECURITY_IMPLEMENTATION.md
+DISCORD_FILE_UPLOAD_ATTEMPTS.md
+TODO.md
+PROJECT_EXPLANATION.md
+web/README_LOCAL.md

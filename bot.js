@@ -4871,15 +4871,30 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                             throw new Error('Aucun fichier valide à envoyer');
                                         }
                                         
-                                        // 2. Payload final SANS embed - juste le GIF directement
-                                        // L'utilisateur veut voir SEULEMENT le GIF animé, pas de texte ni embed
-                                        const payload = {
-                                            content: ' '  // Espace minimal requis par Discord
+                                        // 2. Créer un embed avec image.url pour afficher le GIF directement et animé
+                                        // IMPORTANT: Discord affiche les GIFs animés SEULEMENT si on utilise un embed avec image.url: "attachment://filename.gif"
+                                        const fileName = filesWithBuffers[0].name || 'animation.gif';
+                                        const embed = {
+                                            image: {
+                                                url: `attachment://${fileName}`
+                                            }
                                         };
                                         
-                                        console.log(`📤 Payload: ${filesWithBuffers.length} fichier(s) - GIF uniquement, pas d'embed`);
+                                        // 3. Déclarer les attachments dans le payload
+                                        const attachments = filesWithBuffers.map((file, index) => ({
+                                            id: index,
+                                            filename: file.name,
+                                            description: 'Shader animation'
+                                        }));
                                         
-                                        // 3. Envoyer avec rest.patch - SEULEMENT le GIF, pas d'embed
+                                        const payload = {
+                                            embeds: [embed],
+                                            attachments: attachments
+                                        };
+                                        
+                                        console.log(`📤 Payload: ${filesWithBuffers.length} fichier(s) avec embed pour affichage direct du GIF animé`);
+                                        
+                                        // 4. Envoyer avec rest.patch - Embed avec image.url pour affichage direct
                                         await rest.patch(
                                             Routes.webhookMessage(applicationId, interactionToken, '@original'),
                                             {
@@ -4888,7 +4903,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                             }
                                         );
                                         
-                                        console.log('✅ ✅ ✅ SUCCÈS! GIF animé envoyé directement (sans texte ni embed)! ✅ ✅ ✅');
+                                        console.log('✅ ✅ ✅ SUCCÈS! GIF animé envoyé avec embed pour affichage direct! ✅ ✅ ✅');
                                     }
                                 },
                                 // STRATÉGIE 1: Utiliser directement les AttachmentBuilder originaux sans embed
