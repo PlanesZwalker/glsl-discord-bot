@@ -33,3 +33,19 @@ Cette documentation est destinée aux développeurs et mainteneurs du projet. El
 
 **Dernière mise à jour** : 2025-01-15
 
+## ✅ État Actuel
+
+### Fonctionnalités Implémentées
+- ✅ Système de monétisation complet (Stripe)
+- ✅ API pour développeurs (Studio plan)
+- ✅ Priorité de compilation (Pro/Studio)
+- ✅ Durée GIF jusqu'à 10 secondes (Pro/Studio)
+- ✅ Nettoyage automatique (Free plan)
+- ✅ Architecture de fichiers réorganisée (`storage/`)
+- ✅ Configuration centralisée des chemins (`src/config/paths.js`)
+
+### En Développement
+- ⏳ Stockage cloud illimité (S3)
+- ⏳ Export multi-format (WebP, PNG séquence)
+- ⏳ Collaboration en temps réel
+
