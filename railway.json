@@ -1,0 +1,13 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "PUPPETEER_SKIP_DOWNLOAD=true npm install && npx puppeteer browsers install chrome"
+  },
+  "deploy": {
+    "startCommand": "npm run bot",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}
+

@@ -3,7 +3,10 @@ services:
     name: glsl-discord-bot
     env: node
     plan: free
-    buildCommand: PUPPETEER_SKIP_DOWNLOAD=true npm install && mkdir -p /opt/render/project/.cache/puppeteer && PUPPETEER_CACHE_DIR=/opt/render/project/.cache/puppeteer npx puppeteer browsers install chrome
+    # Build optimisé : utilise le cache Render et évite réinstallation Chrome si présent
+    buildCommand: chmod +x scripts/render-build.sh && ./scripts/render-build.sh
+    # Alternative Docker (plus rapide mais nécessite plan payant) :
+    # dockerfilePath: ./Dockerfile
     startCommand: npm run bot
     healthCheckPath: /health
     envVars:
