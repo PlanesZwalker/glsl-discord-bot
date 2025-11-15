@@ -116,3 +116,16 @@ DISCORD_FILE_UPLOAD_ATTEMPTS.md
 TODO.md
 PROJECT_EXPLANATION.md
 web/README_LOCAL.md
+
+# Storage - Tous les fichiers générés (frames, GIFs, MP4s, cache)
+storage/
+!storage/.gitkeep
+
+# Anciens dossiers (à nettoyer)
+output/
+cache/
+data/frames/
+
+# Tests artifacts
+tests/artifacts/
+!tests/artifacts/.gitkeep

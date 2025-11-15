@@ -10,7 +10,9 @@ const fs = require('fs');
 class SimpleDatabase {
     constructor() {
         this.db = null;
-        this.dbPath = './data/shaders.db';
+        // Utiliser la configuration centralisée des chemins
+        const pathConfig = require('./config/paths');
+        this.dbPath = pathConfig.dbPath;
         this.isInitialized = false;
     }
 
@@ -28,7 +30,8 @@ class SimpleDatabase {
             } else {
                 // En local, créer le dossier data s'il n'existe pas
                 try {
-                    const dataDir = path.dirname(this.dbPath);
+                    const pathConfig = require('./config/paths');
+                    const dataDir = pathConfig.dataDir;
                     if (!fs.existsSync(dataDir)) {
                         fs.mkdirSync(dataDir, { recursive: true });
                         console.log('📁 Dossier data créé');
@@ -216,30 +219,49 @@ class SimpleDatabase {
                                         return;
                                     }
                                     
-                                    this.db.run(createSecurityViolationsTable, (err) => {
-                                        if (err) {
-                                            console.error('❌ Erreur création table security_violations:', err);
-                                            reject(err);
-                                        } else {
-                                            console.log('✅ Tables créées avec succès');
-                                            
-                                            // Créer les index pour améliorer les performances
-                                            this.createIndexes().then(() => {
-                                                resolve();
-                                            }).catch((indexError) => {
-                                                console.warn('⚠️ Erreur création index:', indexError.message);
-                                                resolve(); // Continuer même si les index échouent
-                                            });
-                                        }
-                                    });
+                    this.db.run(createSecurityViolationsTable, (err) => {
+                        if (err) {
+                            console.error('❌ Erreur création table security_violations:', err);
+                            reject(err);
+                            return;
+                        }
+                        
+                        // Créer la table api_keys pour les clés API (Studio plan)
+                        const createAPIKeysTable = `
+                            CREATE TABLE IF NOT EXISTS api_keys (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                user_id TEXT NOT NULL,
+                                hashed_key TEXT NOT NULL UNIQUE,
+                                name TEXT,
+                                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                last_used_at DATETIME,
+                                revoked INTEGER DEFAULT 0,
+                                FOREIGN KEY (user_id) REFERENCES users(id)
+                            );
+                        `;
+                        
+                        this.db.run(createAPIKeysTable, (err) => {
+                            if (err) {
+                                console.error('❌ Erreur création table api_keys:', err);
+                                reject(err);
+                            } else {
+                                console.log('✅ Tables créées avec succès');
+                                
+                                // Créer les index pour améliorer les performances
+                                this.createIndexes().then(() => {
+                                    resolve();
+                                }).catch((indexError) => {
+                                    console.warn('⚠️ Erreur création index:', indexError.message);
+                                    resolve(); // Continuer même si les index échouent
                                 });
-                            });
+                            }
                         });
                     });
                 });
             });
         });
-    }
+    });
+}
 
     async saveShader(shaderData) {
         return new Promise((resolve, reject) => {

@@ -24,7 +24,13 @@ class RealWebGLCompiler {
         // Résolution réduite pour améliorer les performances sur Render.com
         this.canvasWidth = 320;
         this.canvasHeight = 240;
-        this.outputDir = './output';
+        
+        // Utiliser la configuration centralisée des chemins
+        const pathConfig = require('./config/paths');
+        this.outputDir = pathConfig.framesDir; // Utiliser storage/frames au lieu de output
+        this.gifsDir = pathConfig.gifsDir;
+        this.mp4sDir = pathConfig.mp4sDir;
+        
         // FrameRate à 30 fps pour une animation plus fluide
         this.frameRate = 30;
         // Durée réduite pour moins de frames totales
@@ -34,7 +40,7 @@ class RealWebGLCompiler {
         // Browser Pool et Cache
         const maxInstances = parseInt(process.env.MAX_BROWSER_INSTANCES || '2');
         this.browserPool = getBrowserPool(maxInstances);
-        this.shaderCache = getShaderCache('./cache/shaders', 24 * 60 * 60 * 1000);
+        this.shaderCache = getShaderCache(pathConfig.cacheDir, 24 * 60 * 60 * 1000);
         this.metrics = getMetrics();
         this.webglSecurity = new WebGLSecurity();
         
@@ -2528,29 +2534,34 @@ class RealWebGLCompiler {
         const shaderType = options.presetName || 'custom';
         const userId = options.userId || null;
         const jobId = options.jobId || `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        let mp4Path = null; // Initialiser mp4Path au début pour éviter ReferenceError
         
-        // Déterminer la résolution selon le plan de l'utilisateur
+        // Déterminer la résolution et la durée selon le plan de l'utilisateur
         let compilationWidth = this.canvasWidth;
         let compilationHeight = this.canvasHeight;
+        let compilationDuration = this.duration; // Durée par défaut: 2 secondes
         if (options.userId && options.database) {
             try {
                 const userPlan = await options.database.getUserPlan(options.userId);
                 if (userPlan === 'pro') {
-                    // Plan Pro: HD (1920x1080)
+                    // Plan Pro: HD (1920x1080) + GIF jusqu'à 10 secondes
                     compilationWidth = 1920;
                     compilationHeight = 1080;
-                    console.log('📐 Plan Pro détecté - Résolution HD: 1920x1080');
+                    compilationDuration = 10.0; // 10 secondes pour Pro
+                    console.log('📐 Plan Pro détecté - Résolution HD: 1920x1080, Durée GIF: 10 secondes');
                 } else if (userPlan === 'studio') {
-                    // Plan Studio: 4K (3840x2160)
+                    // Plan Studio: 4K (3840x2160) + GIF jusqu'à 10 secondes
                     compilationWidth = 3840;
                     compilationHeight = 2160;
-                    console.log('📐 Plan Studio détecté - Résolution 4K: 3840x2160');
+                    compilationDuration = 10.0; // 10 secondes pour Studio
+                    console.log('📐 Plan Studio détecté - Résolution 4K: 3840x2160, Durée GIF: 10 secondes');
                 } else {
-                    // Plan Free: résolution par défaut (320x240)
-                    console.log('📐 Plan Free - Résolution standard: 320x240');
+                    // Plan Free: résolution par défaut (320x240) + GIF 2 secondes
+                    compilationDuration = 2.0; // 2 secondes pour Free
+                    console.log('📐 Plan Free - Résolution standard: 320x240, Durée GIF: 2 secondes');
                 }
             } catch (planError) {
-                console.warn('⚠️ Erreur récupération plan (utilisation résolution par défaut):', planError.message);
+                console.warn('⚠️ Erreur récupération plan (utilisation paramètres par défaut):', planError.message);
             }
         }
         
@@ -2619,8 +2630,8 @@ class RealWebGLCompiler {
                         gifPath: cachedGif,
                         frameDirectory: null,
                         metadata: {
-                            frames: this.frameRate * this.duration,
-                            duration: this.duration,
+                            frames: this.frameRate * compilationDuration,
+                            duration: compilationDuration,
                             resolution: `${compilationWidth}x${compilationHeight}`,
                             cached: true
                         }
@@ -2907,7 +2918,7 @@ class RealWebGLCompiler {
 
             // Sur Vercel, capturer seulement quelques frames pour économiser la mémoire
             const frames = [];
-            const totalFrames = this.isVercel ? 10 : this.frameRate * this.duration;
+            const totalFrames = this.isVercel ? 10 : this.frameRate * compilationDuration;
             
             // Créer le répertoire de frames au début (pour sauvegarde immédiate)
             let frameDirectory = null;
@@ -3119,14 +3130,16 @@ class RealWebGLCompiler {
                 }
                 
                 // Export MP4 pour les utilisateurs premium (Pro et Studio)
-                let mp4Path = null;
                 if (options.userId && options.database) {
                     try {
                         const userPlan = await options.database.getUserPlan(options.userId);
                         if (userPlan === 'pro' || userPlan === 'studio') {
                             console.log('🎥 Plan Premium détecté - Export MP4...');
                             try {
-                                const mp4OutputPath = path.join(frameDirectory, 'animation.mp4');
+                                // Utiliser storage/mp4s/ pour le MP4 final
+                                const pathConfig = require('./config/paths');
+                                const shaderId = path.basename(frameDirectory).replace('shader_', '');
+                                const mp4OutputPath = path.join(pathConfig.mp4sDir, `shader_${shaderId}_${Date.now()}.mp4`);
                                 mp4Path = await MP4Exporter.exportToMP4(frameDirectory, mp4OutputPath, {
                                     width: compilationWidth,
                                     height: compilationHeight,
@@ -3148,7 +3161,7 @@ class RealWebGLCompiler {
             const metadata = {
                 frames: framesToUse.length,
                 frameRate: this.frameRate,
-                duration: this.isVercel ? (totalFrames / this.frameRate) : this.duration,
+                duration: this.isVercel ? (totalFrames / this.frameRate) : compilationDuration,
                 resolution: `${compilationWidth}x${compilationHeight}`,
                 shaderCode: shaderCode,
                 compilationTime: Date.now(),
@@ -3367,13 +3380,17 @@ class RealWebGLCompiler {
     }
 
     async createGifFromFrames(frames, frameDirectory, width = null, height = null) {
+        // Utiliser le dossier gifs pour le GIF final
+        const pathConfig = require('./config/paths');
         // Utiliser les dimensions fournies ou les dimensions par défaut
         const gifWidth = width || this.canvasWidth;
         const gifHeight = height || this.canvasHeight;
         try {
             console.log('🎬 Création du GIF animé (optimisé pour GIF)...');
             
-            const gifPath = path.join(frameDirectory, 'animation.gif');
+            // Créer le GIF dans storage/gifs/ avec un nom unique
+            const shaderId = path.basename(frameDirectory).replace('shader_', '');
+            const gifPath = path.join(pathConfig.gifsDir, `shader_${shaderId}_${Date.now()}.gif`);
             
             // Si frames est un tableau de buffers, les utiliser directement
             // Sinon, lire depuis le répertoire

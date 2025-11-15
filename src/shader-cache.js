@@ -8,7 +8,12 @@ const fs = require('fs');
 const path = require('path');
 
 class ShaderCache {
-    constructor(cacheDir = './cache/shaders', maxAge = 24 * 60 * 60 * 1000) {
+    constructor(cacheDir = null, maxAge = 24 * 60 * 60 * 1000) {
+        // Utiliser la configuration centralisée si cacheDir n'est pas fourni
+        if (!cacheDir) {
+            const pathConfig = require('./config/paths');
+            cacheDir = pathConfig.cacheDir;
+        }
         this.cacheDir = cacheDir;
         this.maxAge = maxAge; // 24 heures par défaut
         this.memoryCache = new Map(); // Cache mémoire pour les métadonnées

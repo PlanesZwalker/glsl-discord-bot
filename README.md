@@ -6,11 +6,15 @@
 
 ### Bot Discord
 - **Compilation WebGL/WebGPU Réelle** : Compile vos shaders GLSL/WGSL personnalisés
-- **Animations GIF** : Création d'animations de 3 secondes à 30 FPS, exportées en GIF
+- **Animations GIF** : Création d'animations de 2-10 secondes à 30 FPS selon votre plan
 - **100 Shaders Prédéfinis** : Effets animés, fractales, 3D, naturels, géométriques, spatiaux et visuels avancés
 - **Support Textures** : Utilisation de `iChannel0-3` comme sur Shadertoy
 - **Génération via paramètres** : Créez des shaders sans coder en choisissant forme, couleur et animation
 - **Base de données** : Tous vos shaders sont sauvegardés et réutilisables
+- **Système de Plans** : Free, Pro et Studio avec fonctionnalités différenciées
+- **Priorité de Compilation** : Les utilisateurs Pro/Studio bénéficient d'une priorité dans la queue
+- **Export MP4** : Export vidéo MP4 pour les utilisateurs premium (Pro/Studio)
+- **API pour Développeurs** : API REST complète pour les utilisateurs Studio
 
 ### Application Web
 - **🌐 Landing Page Professionnelle** : Interface moderne avec support bilingue (FR/EN)
@@ -124,6 +128,11 @@ Utilisez la commande `/shader` avec votre code :
 }
 ```
 
+**Note** : La résolution et la durée de l'animation dépendent de votre plan :
+- **Free** : 320x240, 2 secondes, avec watermark
+- **Pro** : 1920x1080, jusqu'à 10 secondes, sans watermark, export MP4
+- **Studio** : 3840x2160, jusqu'à 10 secondes, sans watermark, export MP4 + multi-format
+
 ### Shader avec Textures (comme Shadertoy)
 
 ```glsl
@@ -176,6 +185,90 @@ Après avoir compilé un shader, vous recevrez un ID. Utilisez cet ID pour réut
 - **Galerie Interactive** : Explorez les 100 shaders prédéfinis avec aperçus GIF et code source
 - **Support Bilingue** : Interface complète en Français et Anglais
 - **Thème Clair/Sombre** : Basculez entre les thèmes avec persistance
+
+## 💎 Plans et Tarification
+
+ShaderBot propose trois plans pour répondre à tous les besoins :
+
+### 🆓 Plan Free
+- **5 compilations/jour**
+- **10 presets/jour**
+- **Résolution** : 320x240
+- **Durée GIF** : 2 secondes
+- **Watermark** : Oui
+- **Stockage** : 7 jours (nettoyage automatique)
+- **Prix** : Gratuit
+
+### ⚡ Plan Pro (4,99€/mois)
+- **Compilations illimitées**
+- **Presets illimités**
+- **Résolution** : HD (1920x1080)
+- **Durée GIF** : Jusqu'à 10 secondes
+- **Watermark** : Non
+- **Stockage** : Cloud illimité
+- **Export MP4** : Oui
+- **Priorité de compilation** : Oui
+
+### 🚀 Plan Studio (14,99€/mois)
+- **Tout du plan Pro** +
+- **Résolution** : 4K (3840x2160)
+- **API pour développeurs** : 100 requêtes/jour
+- **Export multi-format** : GIF, MP4, WebP, PNG
+- **Support prioritaire**
+
+Visitez la [page de tarification](https://glsl-discord-bot.vercel.app/pricing) pour plus de détails.
+
+## 🔌 API pour Développeurs (Studio Plan)
+
+Les utilisateurs avec le plan Studio ont accès à une API REST complète pour intégrer ShaderBot dans leurs applications.
+
+### Authentification
+Utilisez votre clé API dans le header :
+```
+X-API-Key: glsl_votre_cle_api
+```
+ou
+```
+Authorization: Bearer glsl_votre_cle_api
+```
+
+### Endpoints Disponibles
+
+#### POST `/api/v1/compile`
+Compile un shader via l'API.
+
+**Requête :**
+```json
+{
+  "code": "void mainImage(out vec4 fragColor, in vec2 fragCoord) { fragColor = vec4(1.0, 0.0, 0.0, 1.0); }",
+  "name": "Mon Shader",
+  "format": "gif"
+}
+```
+
+**Réponse :**
+```json
+{
+  "success": true,
+  "shaderId": 123,
+  "gifUrl": "/path/to/animation.gif",
+  "metadata": {
+    "frames": 60,
+    "duration": 2.0,
+    "resolution": "1920x1080"
+  }
+}
+```
+
+#### GET `/api/v1/stats`
+Obtenir les statistiques de votre clé API (rate limit, etc.)
+
+#### GET `/api/v1/presets`
+Liste tous les presets disponibles
+
+### Rate Limiting
+- **Limite** : 100 requêtes/jour
+- **Réinitialisation** : Tous les jours à minuit UTC
 
 ## 📖 Documentation
 

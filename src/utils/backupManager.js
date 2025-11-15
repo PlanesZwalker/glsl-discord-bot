@@ -215,7 +215,9 @@ class BackupManager {
         try {
             Logger.info('📦 Creating full backup...');
 
-            const dbPath = dependencies.dbPath || './data/shaders.db';
+            // Utiliser la configuration centralisée si dbPath n'est pas fourni
+            const pathConfig = require('../config/paths');
+            const dbPath = dependencies.dbPath || pathConfig.dbPath;
             const results = {
                 database: null,
                 metrics: null,

@@ -166,6 +166,31 @@ class GLSLDiscordBot {
             auditLogger.setDatabase(this.database);
             console.log('✅ Audit logger initialisé');
 
+            // Initialiser le système de nettoyage automatique
+            const { CleanupManager } = require('./src/utils/cleanupManager');
+            this.cleanupManager = new CleanupManager(this.database);
+            // Démarrer le nettoyage automatique (toutes les 24h)
+            const cleanupIntervalHours = parseInt(process.env.CLEANUP_INTERVAL_HOURS || '24');
+            this.cleanupManager.startAutoCleanup(cleanupIntervalHours);
+            console.log('✅ Système de nettoyage automatique initialisé');
+
+            // Initialiser le système de queue avec priorité
+            const { getShaderQueue } = require('./src/shader-queue');
+            const maxConcurrent = parseInt(process.env.MAX_CONCURRENT_COMPILATIONS || '2');
+            this.shaderQueue = getShaderQueue(maxConcurrent);
+            console.log('✅ Système de queue avec priorité initialisé');
+
+            // Initialiser le gestionnaire de clés API
+            const { APIKeyManager } = require('./src/utils/apiKeyManager');
+            this.apiKeyManager = new APIKeyManager(this.database);
+            await this.apiKeyManager.createTable();
+            console.log('✅ Gestionnaire de clés API initialisé');
+
+            // Initialiser le rate limiter pour l'API
+            const { APIRateLimiter } = require('./src/utils/apiRateLimiter');
+            this.apiRateLimiter = new APIRateLimiter(this.database);
+            console.log('✅ Rate limiter API initialisé');
+
             // Initialiser le compilateur WebGL (peut échouer si Chrome n'est pas disponible)
             try {
                 await this.compiler.initialize();
@@ -219,6 +244,55 @@ class GLSLDiscordBot {
             await new Promise(resolve => setTimeout(resolve, 2000));
             process.exit(1);
         }
+    }
+
+    /**
+     * Compile un shader avec priorité selon le plan utilisateur
+     * Utilise la queue pour gérer les priorités (Pro/Studio = high, Free = normal)
+     * @param {string} shaderCode - Code du shader à compiler
+     * @param {Object} options - Options de compilation (userId, database, etc.)
+     * @returns {Promise<Object>} Résultat de la compilation
+     */
+    async compileShaderWithPriority(shaderCode, options = {}) {
+        // Déterminer la priorité selon le plan utilisateur
+        let priority = 'normal'; // Par défaut: priorité normale
+        
+        if (options.userId && options.database) {
+            try {
+                const userPlan = await options.database.getUserPlan(options.userId);
+                if (userPlan === 'pro' || userPlan === 'studio') {
+                    priority = 'high'; // Priorité haute pour Pro/Studio
+                    console.log(`⚡ Plan ${userPlan} détecté - Priorité haute dans la queue`);
+                }
+            } catch (planError) {
+                console.warn('⚠️ Erreur récupération plan pour priorité:', planError.message);
+            }
+        }
+
+        // Si la queue n'est pas initialisée ou si la queue est vide, compiler directement
+        if (!this.shaderQueue || this.shaderQueue.queue.length === 0) {
+            // Compiler directement si pas de queue ou queue vide
+            return await this.compiler.compileShader(shaderCode, options);
+        }
+
+        // Utiliser la queue avec priorité
+        console.log(`📋 Ajout de la compilation à la queue avec priorité: ${priority}`);
+        const queueStatus = this.shaderQueue.getStatus();
+        if (queueStatus.queued > 0) {
+            console.log(`⏳ ${queueStatus.queued} compilation(s) en attente, temps d'attente moyen: ${queueStatus.avgWaitTime}s`);
+        }
+
+        return await this.shaderQueue.add(
+            {
+                compiler: this.compiler,
+                shaderCode: shaderCode,
+                options: options
+            },
+            {
+                priority: priority,
+                attempts: 1
+            }
+        );
     }
 
     async loadCommands() {
@@ -5836,7 +5910,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                 cacheManager: require('./src/utils/cacheManager').getCacheManager(),
                 telemetry: require('./src/utils/telemetry').getTelemetry(),
                 webhookManager: require('./src/utils/webhookManager').getWebhookManager(),
-                dbPath: process.env.DB_PATH || './data/shaders.db'
+                dbPath: process.env.DB_PATH || require('./src/config/paths').dbPath
             });
         } catch (error) {
             console.warn('⚠️ Backup automatique non disponible:', error.message);
@@ -6396,6 +6470,158 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                 res.sendFile(filePath);
             } else {
                 res.status(404).send('Fichier non trouvé');
+            }
+        });
+
+        // Endpoint pour obtenir le statut de la queue
+        app.get('/api/queue/status', (req, res) => {
+            try {
+                if (!this.shaderQueue) {
+                    return res.json({ error: 'Queue non initialisée' });
+                }
+                const stats = this.shaderQueue.getStats();
+                res.json(stats);
+            } catch (error) {
+                console.error('❌ Erreur API /api/queue/status:', error);
+                res.status(500).json({ error: 'Erreur interne du serveur' });
+            }
+        });
+
+        // ============================================
+        // API v1 pour développeurs (Studio plan)
+        // ============================================
+
+        // Middleware d'authentification API key
+        const authenticateAPIKey = async (req, res, next) => {
+            try {
+                const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
+                
+                if (!apiKey) {
+                    return res.status(401).json({ error: 'API key manquante. Fournissez-la via le header X-API-Key ou Authorization: Bearer <key>' });
+                }
+
+                const keyInfo = await this.apiKeyManager.validateAPIKey(apiKey);
+                if (!keyInfo) {
+                    return res.status(401).json({ error: 'API key invalide ou révoquée' });
+                }
+
+                // Vérifier le rate limiting
+                const rateLimit = await this.apiRateLimiter.checkLimit(keyInfo.userId);
+                if (!rateLimit.allowed) {
+                    return res.status(429).json({ 
+                        error: 'Limite de requêtes atteinte',
+                        limit: this.apiRateLimiter.limitPerDay,
+                        resetAt: rateLimit.resetAt
+                    });
+                }
+
+                // Ajouter les infos à la requête
+                req.apiKeyInfo = keyInfo;
+                req.userId = keyInfo.userId;
+                next();
+            } catch (error) {
+                console.error('❌ Erreur authentification API key:', error);
+                res.status(500).json({ error: 'Erreur d\'authentification' });
+            }
+        };
+
+        // POST /api/v1/compile - Compiler un shader
+        app.post('/api/v1/compile', authenticateAPIKey, async (req, res) => {
+            try {
+                const { code, name, format } = req.body;
+
+                if (!code || typeof code !== 'string') {
+                    return res.status(400).json({ error: 'Le code du shader est requis' });
+                }
+
+                // Vérifier que l'utilisateur a le plan Studio
+                const userPlan = await this.database.getUserPlan(req.userId);
+                if (userPlan !== 'studio') {
+                    return res.status(403).json({ error: 'L\'accès à l\'API nécessite le plan Studio' });
+                }
+
+                // Compiler le shader
+                const result = await this.compiler.compileShader(code, {
+                    userId: req.userId,
+                    database: this.database,
+                    name: name
+                });
+
+                if (!result.success) {
+                    return res.status(400).json({ error: result.error });
+                }
+
+                // Incrémenter le compteur de requêtes API
+                await this.apiRateLimiter.incrementCount(req.userId);
+
+                // Sauvegarder le shader
+                const shaderId = await this.database.saveShader({
+                    code,
+                    userId: req.userId,
+                    userName: 'API User',
+                    imagePath: result.frameDirectory,
+                    gifPath: result.gifPath,
+                    name: name || `API Shader #${Date.now()}`
+                });
+
+                // Préparer la réponse selon le format demandé
+                const response = {
+                    success: true,
+                    shaderId: shaderId,
+                    metadata: result.metadata
+                };
+
+                // Ajouter les URLs selon le format
+                if (format === 'gif' || !format) {
+                    response.gifUrl = result.gifPath;
+                }
+                if (format === 'mp4' && result.mp4Path) {
+                    response.mp4Url = result.mp4Path;
+                }
+
+                res.json(response);
+            } catch (error) {
+                console.error('❌ Erreur API /api/v1/compile:', error);
+                res.status(500).json({ error: 'Erreur interne du serveur' });
+            }
+        });
+
+        // GET /api/v1/stats - Obtenir les statistiques de l'API key
+        app.get('/api/v1/stats', authenticateAPIKey, async (req, res) => {
+            try {
+                const rateLimit = await this.apiRateLimiter.checkLimit(req.userId);
+                
+                res.json({
+                    userId: req.userId,
+                    apiKeyName: req.apiKeyInfo.name,
+                    rateLimit: {
+                        limit: this.apiRateLimiter.limitPerDay,
+                        remaining: rateLimit.remaining,
+                        resetAt: rateLimit.resetAt
+                    }
+                });
+            } catch (error) {
+                console.error('❌ Erreur API /api/v1/stats:', error);
+                res.status(500).json({ error: 'Erreur interne du serveur' });
+            }
+        });
+
+        // GET /api/v1/presets - Liste des presets disponibles
+        app.get('/api/v1/presets', authenticateAPIKey, async (req, res) => {
+            try {
+                // Récupérer la liste des presets depuis le bot
+                const presets = [];
+                if (this.commands && this.commands.has('shader-preset')) {
+                    const presetCommand = this.commands.get('shader-preset');
+                    // Les presets sont généralement dans les options de la commande
+                    // Pour l'instant, retourner une liste basique
+                    presets.push('rainbow', 'plasma', 'mandelbrot', 'spiral', 'voronoi', 'hexagon');
+                }
+
+                res.json({ presets });
+            } catch (error) {
+                console.error('❌ Erreur API /api/v1/presets:', error);
+                res.status(500).json({ error: 'Erreur interne du serveur' });
             }
         });
         
