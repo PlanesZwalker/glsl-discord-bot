@@ -1520,8 +1520,8 @@ class RealWebGLCompiler {
         });
         
         await page.setViewport({
-            width: this.canvasWidth,
-            height: this.canvasHeight
+            width: canvasWidth,
+            height: canvasHeight
         });
 
         // Charger le template WebGL dans cette nouvelle page
@@ -1536,7 +1536,7 @@ class RealWebGLCompiler {
     </style>
 </head>
 <body>
-    <canvas id="shaderCanvas" width="${this.canvasWidth}" height="${this.canvasHeight}"></canvas>
+    <canvas id="shaderCanvas" width="${canvasWidth}" height="${canvasHeight}"></canvas>
     <script>
         // Définir updateShader IMMÉDIATEMENT pour qu'elle soit toujours disponible
         window.updateShader = function(newShaderCode, textureUrls) {
@@ -2605,9 +2605,9 @@ class RealWebGLCompiler {
             
             updateProgress(20, 'Création de la page de compilation...');
             
-            // Créer une nouvelle page isolée pour cette compilation
-            compilationPage = await this.createCompilationPage(browser);
-            console.log('✅ Page de compilation créée (isolée)');
+            // Créer une nouvelle page isolée pour cette compilation avec la résolution appropriée
+            compilationPage = await this.createCompilationPage(browser, compilationWidth, compilationHeight);
+            console.log(`✅ Page de compilation créée (isolée) - Résolution: ${compilationWidth}x${compilationHeight}`);
             
             // Ajouter timeout strict à la page
             compilationPage.setDefaultTimeout(this.compilationTimeout);

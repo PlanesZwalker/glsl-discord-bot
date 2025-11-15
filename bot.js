@@ -6186,7 +6186,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                     vitesse: speed,
                     taille: size
                 });
-                const result = await this.compiler.compileShader(shaderCode, { userId, name });
+                const result = await this.compiler.compileShader(shaderCode, { 
+                    userId, 
+                    name,
+                    database: this.database  // Passer la database pour vérifier le plan et ajouter watermark
+                });
                 if (result.success) {
                     const shaderId = await this.database.saveShader({
                         code: shaderCode,
