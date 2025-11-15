@@ -73,12 +73,12 @@ export async function GET(
     // IMPORTANT: Les GIFs presets sont maintenant dans assets/presets/
     // Ces fichiers sont servis depuis GitHub raw et ne doivent pas être dans le bundle
     // Vérifier AVANT toute opération fs pour éviter que Vercel les inclue
-    if (imagePath && (imagePath.includes('docs/gifs/') || imagePath.includes('docs\\gifs\\'))) {
-      console.warn(`[Image API] Attempted to read from docs/gifs/ - redirecting to GitHub raw`)
+    if (imagePath && (imagePath.includes('assets/presets/') || imagePath.includes('assets\\presets\\'))) {
+      console.warn(`[Image API] Preset GIF detected - redirecting to GitHub raw`)
       // Rediriger vers GitHub raw si c'est un shader prédéfini
       const shaderName = path.basename(imagePath, path.extname(imagePath))
       return NextResponse.redirect(
-        `https://raw.githubusercontent.com/PlanesZwalker/glsl-discord-bot/master/docs/gifs/${shaderName}.gif`,
+        `https://raw.githubusercontent.com/PlanesZwalker/glsl-discord-bot/master/assets/presets/${shaderName}.gif`,
         302
       )
     }
