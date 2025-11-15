@@ -4796,21 +4796,25 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             
                             // Liste de TOUTES les stratégies à tester
                             const strategies = [
-                                // STRATÉGIE 0: Envoyer le GIF sans embed (juste comme fichier attaché)
-                                // Discord affiche parfois mieux les GIFs animés quand ils sont envoyés directement sans embed
+                                // STRATÉGIE 0: Utiliser directement les AttachmentBuilder originaux sans embed
+                                // Discord.js gère nativement les AttachmentBuilder et les convertit correctement
                                 {
                                     name: 'rest.patch_file_only_no_embed',
                                     desc: 'Envoyer le GIF comme fichier attaché sans embed (meilleure compatibilité GIF animé)',
                                     test: async () => {
-                                        // Envoyer juste le fichier avec un message texte, sans embed
-                                        // Discord affiche mieux les GIFs animés de cette façon
-                                        // Convertir les filePaths en format compatible avec l'API REST
-                                        const fileAttachments = await Promise.all(filePaths.map(async (fp) => {
+                                        // Lire explicitement les fichiers en Buffer avant de les passer à rest.patch
+                                        // Discord.js ne lit pas correctement les fichiers depuis les chemins absolus dans un environnement serverless
+                                        // Solution: Lire les fichiers en Buffer explicitement
+                                        const fileBuffers = await Promise.all(filePaths.map(async (fp) => {
                                             let fileData;
                                             if (fp.path && fs.existsSync(fp.path)) {
+                                                // Lire le fichier en Buffer depuis le chemin
                                                 fileData = fs.readFileSync(fp.path);
+                                                console.log(`📦 Fichier ${fp.name}: ${fileData.length} bytes lus depuis ${fp.path}`);
                                             } else if (fp.buffer) {
+                                                // Utiliser le buffer directement
                                                 fileData = fp.buffer;
+                                                console.log(`📦 Fichier ${fp.name}: ${fileData.length} bytes depuis buffer`);
                                             } else if (fp.stream) {
                                                 // Lire le stream en buffer
                                                 const chunks = [];
@@ -4818,9 +4822,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                                     chunks.push(chunk);
                                                 }
                                                 fileData = Buffer.concat(chunks);
+                                                console.log(`📦 Fichier ${fp.name}: ${fileData.length} bytes depuis stream`);
                                             } else {
                                                 throw new Error(`Impossible de lire le fichier: ${fp.name}`);
                                             }
+                                            
                                             return {
                                                 attachment: fileData,
                                                 name: fp.name || 'animation.gif'
@@ -4833,7 +4839,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                         
                                         await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
                                             body: restPayload,
-                                            files: fileAttachments
+                                            files: fileBuffers // Utiliser les buffers lus explicitement
                                         });
                                     }
                                 },

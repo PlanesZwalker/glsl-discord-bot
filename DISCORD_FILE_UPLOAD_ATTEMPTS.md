@@ -110,6 +110,23 @@
   5. **Priorité 5** : `rest.patch_AttachmentBuilder_full_embed` - Utilise les AttachmentBuilder originaux avec embed complet
 - **Statut**: ❌ **PROBLÈME PERSISTANT** - Même la stratégie de double édition ne fonctionne pas
 
+### 16. Utiliser directement les AttachmentBuilder originaux sans conversion (2025-11-15)
+- **Approche**: Utiliser directement `options.files` (AttachmentBuilder originaux) avec `rest.patch` car discord.js les gère nativement
+- **Résultat**: ❌ **ÉCHEC CRITIQUE** - Discord ne reçoit que **9 bytes** au lieu de 2321 KB
+- **Date**: 2025-11-15
+- **Détails**:
+  - **Stratégie** : `rest.patch_file_only_no_embed` - Utilise directement `options.files` sans conversion
+  - **Code** : `files: options.files` (AttachmentBuilder originaux)
+  - **Résultat API** : ✅ Succès - L'API Discord accepte la requête sans erreur
+  - **Résultat Discord** : ❌ **CRITIQUE** - Discord affiche `Type de fichier joint : unknown animation.gif 9 bytes`
+  - **PROBLÈME IDENTIFIÉ** : Discord.js ne convertit pas correctement les `AttachmentBuilder` en FormData pour les webhooks
+  - **CAUSE PROBABLE** : 
+    - Les `AttachmentBuilder` contiennent des chemins absolus (`/opt/render/project/src/output/...`)
+    - Discord.js essaie de lire ces fichiers mais échoue silencieusement
+    - L'API REST reçoit un fichier vide ou corrompu (9 bytes = probablement juste les métadonnées FormData)
+  - **HYPOTHÈSE** : Discord.js ne peut pas lire les fichiers depuis les chemins absolus dans un environnement serverless
+  - **SOLUTION PROPOSÉE** : Lire explicitement les fichiers en Buffer avant de les passer à `rest.patch`
+
 ## ✅ Ce qui Fonctionne (mais sans fichier visible)
 
 - `rest.patch` de discord.js envoie le message sans erreur
@@ -247,4 +264,186 @@
 - **Stratégie utilisée** : `rest.patch_with_AttachmentBuilder`
 - **Résultat API** : Succès (pas d'erreur)
 - **Résultat Discord** : Message visible mais GIF non affiché (seulement texte "Shader animation")
+
+### Test du 2025-11-15 12:38-12:42 (PROBLÈME CRITIQUE)
+- **Fichier généré** : `output/shader_1763210305153/animation.gif` (2321.59 KB, 60 frames)
+- **Fichier généré** : `output/shader_1763210480045/animation.gif` (97.24 KB, 60 frames)
+- **Chemin résolu** : `/opt/render/project/src/output/shader_1763210305153/animation.gif` (existe: true)
+- **Chemin résolu** : `/opt/render/project/src/output/shader_1763210480045/animation.gif` (existe: true)
+- **Stratégie utilisée** : `rest.patch_file_only_no_embed` (utilise directement `options.files` - AttachmentBuilder originaux)
+- **Résultat API** : ✅ Succès - `✅ ✅ ✅ SUCCÈS avec stratégie "rest.patch_file_only_no_embed"! ✅ ✅ ✅`
+- **Résultat Discord** : ❌ **CRITIQUE** - Discord affiche `Type de fichier joint : unknown animation.gif 9 bytes`
+- **PROBLÈME IDENTIFIÉ** : Discord ne reçoit que **9 bytes** au lieu de 2321 KB ou 97 KB
+- **HYPOTHÈSE** : Discord.js ne convertit pas correctement les `AttachmentBuilder` en FormData pour les webhooks
+- **CAUSE PROBABLE** : 
+  - Les `AttachmentBuilder` contiennent des chemins de fichiers (`/opt/render/project/src/output/...`)
+  - Discord.js essaie de lire ces fichiers mais échoue silencieusement
+  - L'API REST reçoit un fichier vide ou corrompu (9 bytes = probablement juste les métadonnées)
+  - **9 bytes = probablement la taille d'un header FormData vide ou d'un fichier non lu**
+
+## 🔬 Investigation Approfondie (2025-11-15)
+
+### Problème Principal : 9 bytes au lieu de 2321 KB
+
+**Symptômes** :
+- Le GIF est généré avec succès (2321.59 KB, 60 frames)
+- Le fichier existe sur le système de fichiers (`fs.existsSync` retourne `true`)
+- L'API Discord accepte la requête sans erreur
+- **MAIS** Discord ne reçoit que 9 bytes au lieu de 2321 KB
+
+**Hypothèses** :
+
+1. **Discord.js ne lit pas les fichiers depuis les chemins absolus**
+   - Les `AttachmentBuilder` contiennent des chemins absolus (`/opt/render/project/src/output/...`)
+   - Discord.js pourrait ne pas pouvoir lire ces fichiers (permissions, chemin incorrect, etc.)
+   - **À vérifier** : Logger le contenu exact de `file.attachment` dans les `AttachmentBuilder`
+
+2. **Discord.js ne convertit pas correctement les AttachmentBuilder en FormData**
+   - Discord.js devrait automatiquement convertir les `AttachmentBuilder` en FormData
+   - Mais peut-être que pour les webhooks, le format est différent
+   - **À vérifier** : Inspecter le FormData généré par discord.js avant l'envoi
+
+3. **Le format attendu par l'API REST Discord est différent pour les webhooks**
+   - Les webhooks peuvent nécessiter un format différent que les messages normaux
+   - **Référence** : [Discord API Documentation - Webhooks](https://discord.com/developers/docs/resources/webhook#execute-webhook)
+   - **À vérifier** : Utiliser directement l'API Discord avec FormData manuel
+
+4. **Les fichiers sont lus mais pas correctement encodés**
+   - Discord.js pourrait lire le fichier mais l'encoder incorrectement
+   - **À vérifier** : Vérifier que le Buffer lu correspond bien au fichier sur disque
+
+### Solutions à Tester (Priorité)
+
+#### 1. Vérifier le contenu des AttachmentBuilder
+```javascript
+console.log('🔍 AttachmentBuilder debug:', {
+    files: options.files.map(f => ({
+        name: f.name,
+        attachmentType: typeof f.attachment,
+        attachmentValue: f.attachment,
+        isBuffer: Buffer.isBuffer(f.attachment),
+        isString: typeof f.attachment === 'string',
+        pathExists: typeof f.attachment === 'string' ? fs.existsSync(f.attachment) : null,
+        fileSize: typeof f.attachment === 'string' && fs.existsSync(f.attachment) 
+            ? fs.statSync(f.attachment).size 
+            : null
+    }))
+});
+```
+
+#### 2. Lire explicitement les fichiers en Buffer avant de les passer
+```javascript
+const fileBuffers = await Promise.all(options.files.map(async (file) => {
+    if (typeof file.attachment === 'string' && fs.existsSync(file.attachment)) {
+        const buffer = fs.readFileSync(file.attachment);
+        console.log(`📦 Fichier ${file.name}: ${buffer.length} bytes lus depuis ${file.attachment}`);
+        return {
+            attachment: buffer,
+            name: file.name
+        };
+    }
+    return file;
+}));
+```
+
+#### 3. Utiliser FormData manuel avec la structure exacte de Discord
+```javascript
+const FormData = require('form-data');
+const formData = new FormData();
+
+// Payload JSON
+const payload = {
+    content: '🎨 Shader Animation'
+};
+formData.append('payload_json', JSON.stringify(payload));
+
+// Fichiers
+for (let i = 0; i < filePaths.length; i++) {
+    const fp = filePaths[i];
+    if (fp.path && fs.existsSync(fp.path)) {
+        const fileStream = fs.createReadStream(fp.path);
+        formData.append(`files[${i}]`, fileStream, {
+            filename: fp.name || 'animation.gif',
+            contentType: 'image/gif'
+        });
+    }
+}
+
+// Envoyer avec fetch ou axios
+```
+
+#### 4. Utiliser directement l'API Discord avec fetch
+```javascript
+const response = await fetch(`https://discord.com/api/v10/webhooks/${applicationId}/${interactionToken}/messages/@original`, {
+    method: 'PATCH',
+    headers: {
+        'Authorization': `Bot ${process.env.DISCORD_TOKEN}`,
+        ...formData.getHeaders()
+    },
+    body: formData
+});
+```
+
+#### 5. Vérifier la documentation Discord.js pour les webhooks
+- **Référence** : [Discord.js Documentation - REST](https://discord.js.org/#/docs/discord.js/main/class/REST)
+- **Référence** : [Discord.js GitHub - Issues sur les fichiers](https://github.com/discordjs/discord.js/issues?q=is%3Aissue+webhook+file)
+- **À chercher** : Problèmes connus avec `rest.patch` et les fichiers pour les webhooks
+
+#### 6. Tester avec un fichier plus petit
+- Générer un GIF de 10 frames au lieu de 60
+- Vérifier si le problème persiste avec un fichier plus petit
+- Cela pourrait indiquer un problème de timeout ou de taille
+
+#### 7. Vérifier les permissions de fichiers
+```javascript
+const stats = fs.statSync(filePath);
+console.log('📊 Stats fichier:', {
+    size: stats.size,
+    mode: stats.mode.toString(8),
+    readable: fs.accessSync(filePath, fs.constants.R_OK) === undefined
+});
+```
+
+#### 8. Comparer avec un envoi réussi (si disponible)
+- Si on a un historique d'envois réussis, comparer la structure exacte
+- Vérifier les différences entre les requêtes réussies et échouées
+
+### Références Documentation
+
+1. **Discord API - Webhooks**
+   - [Execute Webhook](https://discord.com/developers/docs/resources/webhook#execute-webhook)
+   - [Edit Webhook Message](https://discord.com/developers/docs/resources/webhook#edit-webhook-message)
+   - Format attendu : `multipart/form-data` avec `payload_json` et `files[n]`
+
+2. **Discord.js - REST**
+   - [REST Documentation](https://discord.js.org/#/docs/discord.js/main/class/REST)
+   - [Routes Documentation](https://discord.js.org/#/docs/discord.js/main/class/Routes)
+   - Comment discord.js gère les fichiers pour `rest.patch`
+
+3. **Issues GitHub Discord.js**
+   - Rechercher : "webhook file upload"
+   - Rechercher : "rest.patch files"
+   - Rechercher : "AttachmentBuilder webhook"
+
+### Plan d'Action Immédiat
+
+1. **PRIORITÉ 1** : Ajouter des logs détaillés pour voir exactement ce que discord.js envoie
+   - Logger le contenu des `AttachmentBuilder`
+   - Logger la taille des fichiers lus
+   - Logger la requête HTTP générée par discord.js (si possible)
+
+2. **PRIORITÉ 2** : Tester avec FormData manuel
+   - Créer un FormData manuel avec la structure exacte de Discord
+   - Envoyer avec `fetch` directement
+   - Comparer avec ce que discord.js envoie
+
+3. **PRIORITÉ 3** : Vérifier si le problème vient de discord.js ou de Discord
+   - Tester avec un fichier plus petit
+   - Tester avec un fichier différent (PNG au lieu de GIF)
+   - Vérifier les logs Discord pour voir ce qui est reçu
+
+4. **PRIORITÉ 4** : Rechercher des solutions existantes
+   - Chercher dans les issues GitHub de discord.js
+   - Chercher dans la documentation Discord
+   - Chercher dans les forums Discord.js
 
