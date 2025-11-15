@@ -5861,6 +5861,100 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         // Middleware pour tracker les requêtes
         app.use(gracefulShutdown.middleware());
 
+        // Headers de sécurité avec Helmet (si disponible)
+        try {
+            const helmet = require('helmet');
+            app.use(helmet({
+                contentSecurityPolicy: {
+                    directives: {
+                        defaultSrc: ["'self'"],
+                        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Nécessaire pour WebGL
+                        styleSrc: ["'self'", "'unsafe-inline'"],
+                        imgSrc: ["'self'", "data:", "https:"],
+                        connectSrc: ["'self'", "https://api.stripe.com", "https://discord.com"],
+                        fontSrc: ["'self'"],
+                        objectSrc: ["'none'"],
+                        mediaSrc: ["'none'"],
+                        frameSrc: ["'self'", "https://js.stripe.com"],
+                        upgradeInsecureRequests: []
+                    }
+                },
+                hsts: {
+                    maxAge: 31536000, // 1 an
+                    includeSubDomains: true,
+                    preload: true
+                },
+                frameguard: {
+                    action: 'deny'
+                },
+                noSniff: true,
+                xssFilter: true,
+                referrerPolicy: {
+                    policy: 'strict-origin-when-cross-origin'
+                }
+            }));
+            console.log('✅ Helmet configuré pour les headers de sécurité');
+        } catch (error) {
+            console.warn('⚠️ Helmet non disponible, utilisation de headers manuels');
+            // Headers de sécurité manuels si Helmet n'est pas disponible
+            app.use((req, res, next) => {
+                res.setHeader('X-Content-Type-Options', 'nosniff');
+                res.setHeader('X-Frame-Options', 'DENY');
+                res.setHeader('X-XSS-Protection', '1; mode=block');
+                res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+                res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+                res.removeHeader('X-Powered-By');
+                next();
+            });
+        }
+
+        // Rate limiting global avec express-rate-limit (si disponible)
+        try {
+            const rateLimit = require('express-rate-limit');
+            const globalLimiter = rateLimit({
+                windowMs: 15 * 60 * 1000, // 15 minutes
+                max: 100, // 100 requêtes par IP
+                message: 'Trop de requêtes depuis cette IP, veuillez réessayer plus tard.',
+                standardHeaders: true,
+                legacyHeaders: false,
+                handler: (req, res) => {
+                    const { getAuditLogger } = require('./src/utils/auditLogger');
+                    const auditLogger = getAuditLogger();
+                    auditLogger.log('RATE_LIMIT_EXCEEDED', {
+                        ip: req.ip,
+                        path: req.path,
+                        userAgent: req.get('user-agent')
+                    });
+                    res.status(429).json({
+                        error: 'Too many requests',
+                        retryAfter: 900 // secondes
+                    });
+                }
+            });
+            app.use(globalLimiter);
+            console.log('✅ Rate limiting global configuré');
+        } catch (error) {
+            console.warn('⚠️ express-rate-limit non disponible, rate limiting désactivé');
+        }
+
+        // Slow down pour les endpoints de compilation (si disponible)
+        try {
+            const slowDown = require('express-slow-down');
+            const compilationSlowDown = slowDown({
+                windowMs: 15 * 60 * 1000, // 15 minutes
+                delayAfter: 3, // Après 3 requêtes, commencer à ralentir
+                delayMs: (hits) => hits * 1000, // +1 seconde par requête
+                maxDelayMs: 20000, // Max 20 secondes de délai
+                skipSuccessfulRequests: false
+            });
+            app.use('/api/shaders/compile', compilationSlowDown);
+            app.use('/api/shaders/generate', compilationSlowDown);
+            app.use('/api/shaders/preset', compilationSlowDown);
+            console.log('✅ Slow down configuré pour les endpoints de compilation');
+        } catch (error) {
+            console.warn('⚠️ express-slow-down non disponible, slow down désactivé');
+        }
+
         // Headers CORS pour Discord et API web (avant tout autre middleware)
         app.use((req, res, next) => {
             const allowedOrigins = [

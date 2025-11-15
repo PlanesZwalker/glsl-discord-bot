@@ -317,6 +317,39 @@ class RealWebGLCompiler {
             
             this.page = await this.browser.newPage();
             
+            // Définir des limites strictes
+            await this.page.setDefaultTimeout(10000); // 10s par opération
+            await this.page.setDefaultNavigationTimeout(10000);
+            
+            // Bloquer tous les chargements externes
+            await this.page.setRequestInterception(true);
+            this.page.on('request', request => {
+                const url = request.url();
+                
+                // Autoriser seulement data: URIs et about:blank
+                if (url.startsWith('data:') || url.startsWith('about:')) {
+                    request.continue();
+                } else {
+                    console.warn(`🚫 Requête bloquée: ${url}`);
+                    request.abort();
+                }
+            });
+            
+            // Injecter Content Security Policy strict
+            await this.page.setExtraHTTPHeaders({
+                'Content-Security-Policy': [
+                    "default-src 'none'",
+                    "script-src 'unsafe-inline' 'unsafe-eval'", // Nécessaire pour WebGL
+                    "style-src 'unsafe-inline'",
+                    "img-src data:",
+                    "connect-src 'none'",
+                    "font-src 'none'",
+                    "object-src 'none'",
+                    "media-src 'none'",
+                    "frame-src 'none'"
+                ].join('; ')
+            });
+            
             // Capturer les erreurs de console pour déboguer
             this.page.on('console', msg => {
                 const type = msg.type();
@@ -1284,7 +1317,17 @@ class RealWebGLCompiler {
 </body>
 </html>`;
 
-        await this.page.setContent(template);
+        // Compiler avec timeout
+        const compilationPromise = this.page.setContent(template, {
+            waitUntil: 'networkidle0',
+            timeout: 10000
+        });
+        
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Compilation timeout')), 25000)
+        );
+        
+        await Promise.race([compilationPromise, timeoutPromise]);
         console.log('📄 Template HTML chargé');
         
         // Attendre que le canvas soit disponible
