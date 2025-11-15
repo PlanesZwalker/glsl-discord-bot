@@ -6280,6 +6280,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         // Route pour récupérer les plans disponibles
         app.get('/api/plans', (req, res) => {
             try {
+                if (!subscriptionManager) {
+                    return res.status(503).json({ error: 'Système de paiement non configuré' });
+                }
                 res.json(PLANS);
             } catch (error) {
                 console.error('❌ Erreur API /api/plans:', error);
@@ -6343,6 +6346,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         // Route pour annuler un abonnement
         app.post('/api/subscription/cancel', async (req, res) => {
             try {
+                if (!subscriptionManager) {
+                    return res.status(503).json({ error: 'Système de paiement non configuré' });
+                }
+                
                 const { userId } = req.body;
                 if (!userId) {
                     return res.status(400).json({ error: 'userId est requis' });
