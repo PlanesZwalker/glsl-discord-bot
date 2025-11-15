@@ -14,7 +14,8 @@ const fs = require('fs');
 const path = require('path');
 const nacl = require('tweetnacl');
 const crypto = require('crypto');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+// Stripe - seulement si la clé est définie
+const stripe = process.env.STRIPE_SECRET_KEY ? require('stripe')(process.env.STRIPE_SECRET_KEY) : null;
 
 // Configuration
 const config = require('./production.config.js');
@@ -122,6 +123,17 @@ class GLSLDiscordBot {
     }
 
     async initialize() {
+        // Valider les variables d'environnement au démarrage
+        try {
+            const { EnvValidator } = require('./src/utils/envValidator');
+            EnvValidator.validate();
+        } catch (error) {
+            console.error('❌ Erreur validation variables d\'environnement:', error.message);
+            // En mode développement, on peut continuer avec un avertissement
+            if (process.env.NODE_ENV === 'production') {
+                throw error;
+            }
+        }
         try {
             console.log('🚀 Initialisation du bot Discord GLSL...');
             
@@ -140,6 +152,12 @@ class GLSLDiscordBot {
             // Initialiser la base de données
             await this.database.initialize();
             console.log('✅ Base de données initialisée');
+            
+            // Initialiser l'audit logger avec la base de données
+            const { getAuditLogger } = require('./src/utils/auditLogger');
+            const auditLogger = getAuditLogger();
+            auditLogger.setDatabase(this.database);
+            console.log('✅ Audit logger initialisé');
 
             // Initialiser le compilateur WebGL (peut échouer si Chrome n'est pas disponible)
             try {
@@ -4798,7 +4816,82 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                             
                             // Liste de TOUTES les stratégies à tester
                             const strategies = [
-                                // STRATÉGIE 0: Utiliser directement les AttachmentBuilder originaux sans embed
+                                // STRATÉGIE 0: Lire explicitement les fichiers en Buffer et utiliser rest.patch
+                                // PRIORITÉ 1: Cette stratégie lit explicitement les fichiers en Buffer pour éviter le problème des 9 bytes
+                                {
+                                    name: 'rest.patch_explicit_buffers',
+                                    desc: 'Lire explicitement les fichiers en Buffer et utiliser rest.patch (solution au problème 9 bytes)',
+                                    test: async () => {
+                                        console.log('🔄 Tentative avec rest.patch + Buffers explicites...');
+                                        
+                                        // Lire tous les fichiers en Buffer
+                                        const filesWithBuffers = [];
+                                        
+                                        for (const file of options.files) {
+                                            if (typeof file.attachment === 'string') {
+                                                const filePath = file.attachment;
+                                                
+                                                // Vérifier que le fichier existe
+                                                if (!fs.existsSync(filePath)) {
+                                                    console.error(`❌ Fichier introuvable: ${filePath}`);
+                                                    continue;
+                                                }
+                                                
+                                                // Lire le fichier en Buffer
+                                                const buffer = fs.readFileSync(filePath);
+                                                const stats = fs.statSync(filePath);
+                                                
+                                                console.log(`📦 Fichier lu: ${file.name}`);
+                                                console.log(`   Chemin: ${filePath}`);
+                                                console.log(`   Taille disque: ${(stats.size / 1024).toFixed(2)} KB`);
+                                                console.log(`   Taille buffer: ${(buffer.length / 1024).toFixed(2)} KB`);
+                                                console.log(`   Match: ${stats.size === buffer.length ? '✅' : '❌'}`);
+                                                
+                                                filesWithBuffers.push({
+                                                    attachment: buffer,
+                                                    name: file.name
+                                                });
+                                            } else if (Buffer.isBuffer(file.attachment)) {
+                                                // Déjà un Buffer
+                                                console.log(`📦 Fichier déjà en Buffer: ${file.name} (${(file.attachment.length / 1024).toFixed(2)} KB)`);
+                                                filesWithBuffers.push(file);
+                                            } else {
+                                                console.warn(`⚠️ Type de fichier non supporté:`, typeof file.attachment);
+                                            }
+                                        }
+                                        
+                                        if (filesWithBuffers.length === 0) {
+                                            throw new Error('Aucun fichier valide à envoyer');
+                                        }
+                                        
+                                        // Créer le payload avec embed minimal
+                                        const fileName = filesWithBuffers[0].name || 'animation.gif';
+                                        const minimalEmbed = [{
+                                            title: '🎨 Shader Animation',
+                                            image: { url: `attachment://${fileName}` },
+                                            color: embedsJson[0]?.color || 0x9B59B6,
+                                            timestamp: new Date().toISOString()
+                                        }];
+                                        
+                                        const payload = {
+                                            embeds: minimalEmbed
+                                        };
+                                        
+                                        console.log(`📤 Envoi de ${filesWithBuffers.length} fichier(s) avec rest.patch...`);
+                                        
+                                        // Envoyer avec rest.patch
+                                        await rest.patch(
+                                            Routes.webhookMessage(applicationId, interactionToken, '@original'),
+                                            {
+                                                body: payload,
+                                                files: filesWithBuffers
+                                            }
+                                        );
+                                        
+                                        console.log('✅ ✅ ✅ SUCCÈS avec buffers explicites! ✅ ✅ ✅');
+                                    }
+                                },
+                                // STRATÉGIE 1: Utiliser directement les AttachmentBuilder originaux sans embed
                                 // Discord.js gère nativement les AttachmentBuilder et les convertit correctement
                                 {
                                     name: 'rest.patch_file_only_no_embed',
@@ -6142,6 +6235,9 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
                 let event;
                 try {
+                    if (!stripe) {
+                        return res.status(500).json({ error: 'Stripe not configured' });
+                    }
                     event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
                 } catch (err) {
                     console.error('❌ Erreur vérification signature webhook:', err.message);

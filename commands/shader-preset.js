@@ -74,6 +74,15 @@ module.exports = {
                 return await interaction.editReply({ embeds: [embed] });
             }
 
+            // Vérifier les limites selon le plan de l'utilisateur pour les presets
+            const canUsePreset = await database.canUserUsePreset(interaction.user.id);
+            if (!canUsePreset.allowed) {
+                await interaction.editReply({
+                    content: `❌ ${canUsePreset.reason}\n\n💎 Passez à **Pro** (4,99€/mois) pour des presets illimités!\n🔗 ${process.env.WEB_URL || 'https://glsl-discord-bot.onrender.com'}/pricing`
+                });
+                return;
+            }
+
             // Compile the shader with preset name and user ID for metrics
             const result = await compiler.compileShader(shaderCode, {
                 presetName: presetName,
@@ -97,6 +106,9 @@ module.exports = {
             });
 
             await database.updateUserStats(interaction.user.id, interaction.user.username);
+            
+            // Incrémenter le compteur de presets
+            await database.incrementPresetCount(interaction.user.id);
 
             // Prepare response with animation
             const { AttachmentBuilder } = require('discord.js');

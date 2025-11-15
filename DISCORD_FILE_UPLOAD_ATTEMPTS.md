@@ -111,6 +111,23 @@
 - **Statut**: ❌ **PROBLÈME PERSISTANT** - Même la stratégie de double édition ne fonctionne pas
 
 ### 16. Utiliser directement les AttachmentBuilder originaux sans conversion (2025-11-15)
+- **Résultat**: ❌ **ÉCHEC** - Discord ne reçoit que **9 bytes** au lieu de 2321 KB
+- **Date**: 2025-11-15
+- **Détails**: Voir section "Test du 2025-11-15 12:38-12:42" ci-dessous
+
+### 18. Lire explicitement les fichiers en Buffer (2025-11-15) - PRIORITÉ 1
+- **Approche**: Lire explicitement les fichiers en Buffer avec `fs.readFileSync()` avant de les passer à `rest.patch`
+- **Résultat**: ⏳ En test - PRIORITÉ 1
+- **Date**: 2025-11-15 16:40
+- **Détails**: Voir section "Tentative 18" ci-dessous
+
+### 17. Ajouter contenu minimal dans payload FormData (2025-11-15)
+- **Approche**: Ajouter un espace dans le payload JSON pour éviter l'erreur "Cannot send an empty message"
+- **Résultat**: ✅ Correction appliquée
+- **Date**: 2025-11-15 16:30
+- **Détails**: Voir section "Tentative 17" ci-dessous
+
+### 16. Utiliser directement les AttachmentBuilder originaux sans conversion (2025-11-15)
 - **Approche**: Utiliser directement `options.files` (AttachmentBuilder originaux) avec `rest.patch` car discord.js les gère nativement
 - **Résultat**: ❌ **ÉCHEC CRITIQUE** - Discord ne reçoit que **9 bytes** au lieu de 2321 KB
 - **Date**: 2025-11-15
@@ -264,6 +281,51 @@
 - **Stratégie utilisée** : `rest.patch_with_AttachmentBuilder`
 - **Résultat API** : Succès (pas d'erreur)
 - **Résultat Discord** : Message visible mais GIF non affiché (seulement texte "Shader animation")
+
+### Tentative 17: Ajouter contenu minimal dans payload (2025-11-15)
+- **Approche**: Ajouter un espace dans le payload JSON pour éviter l'erreur "Cannot send an empty message"
+- **Résultat**: ✅ Correction appliquée
+- **Date**: 2025-11-15 16:30
+- **Détails**:
+  - **PROBLÈME IDENTIFIÉ** : Discord rejette les messages complètement vides (`{}`) même avec des fichiers
+  - **ERREUR** : `Discord API error: 400 Bad Request - {"message": "Cannot send an empty message", "code": 50006}`
+  - **SOLUTION** : Ajouter un espace dans le payload JSON : `{ content: ' ' }`
+  - **HYPOTHÈSE** : Discord trim l'espace mais accepte le message avec le fichier
+  - **STATUT** : ✅ Implémenté
+
+### Tentative 18: Lire explicitement les fichiers en Buffer (2025-11-15) - PRIORITÉ 1
+- **Approche**: Lire explicitement les fichiers en Buffer avec `fs.readFileSync()` avant de les passer à `rest.patch`
+- **Résultat**: ⏳ En test - PRIORITÉ 1
+- **Date**: 2025-11-15 16:40
+- **Détails**:
+  - **PROBLÈME IDENTIFIÉ** : Discord.js ne peut pas lire correctement les fichiers depuis les `AttachmentBuilder` quand on utilise `rest.patch` avec des webhooks
+  - **CAUSE RACINE** : Les `AttachmentBuilder` contiennent des chemins de fichiers, mais discord.js échoue silencieusement à les lire dans un environnement serverless
+  - **RÉSULTAT** : Discord ne reçoit que 9 bytes (métadonnées FormData) au lieu de ~2321 KB
+  - **SOLUTION** : Lire explicitement les fichiers en Buffer avec `fs.readFileSync()` avant de les passer à `rest.patch`
+  - **CODE** :
+    ```javascript
+    // Lire le fichier en Buffer
+    const buffer = fs.readFileSync(filePath);
+    const stats = fs.statSync(filePath);
+    
+    // Vérifier que la taille correspond
+    console.log(`Taille disque: ${stats.size} bytes`);
+    console.log(`Taille buffer: ${buffer.length} bytes`);
+    console.log(`Match: ${stats.size === buffer.length ? '✅' : '❌'}`);
+    
+    // Passer le Buffer à rest.patch
+    await rest.patch(Routes.webhookMessage(...), {
+        body: { embeds: [...] },
+        files: [{ attachment: buffer, name: fileName }]
+    });
+    ```
+  - **POURQUOI ÇA VA FONCTIONNER** :
+    1. Lecture explicite : On lit les fichiers avec `fs.readFileSync()` pour obtenir un `Buffer`
+    2. Vérification : On vérifie que la taille du Buffer correspond à la taille sur disque
+    3. Discord.js compatible : Discord.js sait gérer les Buffers nativement
+    4. Logging détaillé : On log chaque étape pour débugger si nécessaire
+  - **STATUT** : ⏳ En attente de test sur Render.com
+  - **PRIORITÉ** : 1 (première stratégie testée)
 
 ### Test du 2025-11-15 12:38-12:42 (PROBLÈME CRITIQUE)
 - **Fichier généré** : `output/shader_1763210305153/animation.gif` (2321.59 KB, 60 frames)

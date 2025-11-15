@@ -32,6 +32,16 @@ module.exports = {
         await interaction.deferReply();
 
         try {
+            // Vérifier si l'utilisateur est banni
+            const banStatus = await database.isUserBanned(interaction.user.id);
+            if (banStatus) {
+                const embed = CustomEmbedBuilder.error(
+                    'Accès interdit',
+                    `Vous êtes banni jusqu'au ${banStatus.banned_until ? new Date(banStatus.banned_until).toLocaleString() : 'indéfiniment'}.\nRaison: ${banStatus.reason}`
+                );
+                return await interaction.editReply({ embeds: [embed] });
+            }
+
             // Rate limiting
             const rateLimiter = getRateLimiter();
             const limitCheck = rateLimiter.checkLimit(interaction.user.id, 'shader');
@@ -52,13 +62,28 @@ module.exports = {
                 return await interaction.editReply({ embeds: [embed] });
             }
             
-            // Récupérer les URLs de textures optionnelles
-            const textureUrls = [
+            // Récupérer les URLs de textures optionnelles et les valider
+            const textureUrlsRaw = [
                 interaction.options.getString('texture0'),
                 interaction.options.getString('texture1'),
                 interaction.options.getString('texture2'),
                 interaction.options.getString('texture3')
-            ].filter(url => url !== null); // Filtrer les valeurs null
+            ].filter(url => url !== null);
+            
+            // Valider les URLs de textures pour protéger contre SSRF
+            const { URLSecurityValidator } = require('../src/utils/urlSecurityValidator');
+            const textureUrls = [];
+            for (const url of textureUrlsRaw) {
+                const urlValidation = await URLSecurityValidator.validate(url);
+                if (!urlValidation.valid) {
+                    const embed = CustomEmbedBuilder.error(
+                        'URL de texture invalide',
+                        urlValidation.error
+                    );
+                    return await interaction.editReply({ embeds: [embed] });
+                }
+                textureUrls.push(url);
+            }
 
             // Validate shader avec le validateur amélioré
             const validation = ShaderValidator.validateAndSanitize(shaderCode);
@@ -68,6 +93,45 @@ module.exports = {
                     validation.errors.join('\n')
                 );
                 return await interaction.editReply({ embeds: [embed] });
+            }
+
+            // Validation de sécurité supplémentaire
+            const { ShaderSecurityValidator } = require('../src/utils/shaderSecurityValidator');
+            const { getAuditLogger } = require('../src/utils/auditLogger');
+            const auditLogger = getAuditLogger();
+            
+            const securityValidation = ShaderSecurityValidator.validateAndSanitize(validation.sanitized || shaderCode);
+            if (!securityValidation.valid) {
+                // Logger la tentative d'injection
+                await auditLogger.logSecurityViolation(
+                    interaction.user.id,
+                    'SHADER_INJECTION_ATTEMPT',
+                    { errors: securityValidation.errors, codeHash: securityValidation.codeHash }
+                );
+                
+                const embed = CustomEmbedBuilder.error(
+                    '❌ Shader Invalide - Sécurité',
+                    'Votre shader contient des éléments non autorisés:\n' + 
+                    securityValidation.errors.join('\n')
+                );
+                return await interaction.editReply({ embeds: [embed] });
+            }
+            
+            // Afficher les warnings de sécurité
+            if (securityValidation.warnings.length > 0) {
+                await interaction.followUp({
+                    content: `⚠️ **Avertissements de sécurité:**\n${securityValidation.warnings.join('\n')}`,
+                    ephemeral: true
+                });
+            }
+
+            // Vérifier les limites selon le plan de l'utilisateur
+            const canCompile = await database.canUserCompile(interaction.user.id);
+            if (!canCompile.allowed) {
+                await interaction.editReply({
+                    content: `❌ ${canCompile.reason}\n\n💎 Passez à **Pro** (4,99€/mois) pour des compilations illimitées!\n🔗 ${process.env.WEB_URL || 'https://glsl-discord-bot.onrender.com'}/pricing`
+                });
+                return;
             }
 
             // Utiliser le code nettoyé si disponible
@@ -100,6 +164,9 @@ module.exports = {
             });
 
             await database.updateUserStats(interaction.user.id, interaction.user.username);
+            
+            // Incrémenter le compteur de compilations
+            await database.incrementCompilationCount(interaction.user.id);
 
             // Prepare response with animation
             const { AttachmentBuilder } = require('discord.js');
