@@ -5682,21 +5682,32 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         // DOIT être avant express.json() pour capturer le raw body
         app.post('/discord', express.raw({ type: 'application/json' }), async (req, res) => {
             try {
-                // Récupérer les en-têtes de signature
-                const signature = req.headers['x-signature-ed25519'];
-                const timestamp = req.headers['x-signature-timestamp'];
+                // Récupérer les en-têtes de signature (Express normalise en minuscules)
+                const signature = req.headers['x-signature-ed25519'] || req.headers['X-Signature-Ed25519'];
+                const timestamp = req.headers['x-signature-timestamp'] || req.headers['X-Signature-Timestamp'];
                 
                 // Vérifier que les en-têtes sont présents
                 if (!signature || !timestamp) {
                     console.error('❌ En-têtes de signature manquants:', {
                         hasSignature: !!signature,
-                        hasTimestamp: !!timestamp
+                        hasTimestamp: !!timestamp,
+                        headers: Object.keys(req.headers).filter(h => h.toLowerCase().includes('signature'))
                     });
                     return res.status(401).send('Unauthorized: Missing signature headers');
                 }
                 
                 // Vérifier la signature avec le raw body
-                const rawBody = req.body; // C'est déjà un Buffer grâce à express.raw()
+                // express.raw() stocke le body brut dans req.body comme Buffer
+                const rawBody = req.body;
+                if (!rawBody || !Buffer.isBuffer(rawBody)) {
+                    console.error('❌ Raw body manquant ou invalide pour validation de signature:', {
+                        hasBody: !!rawBody,
+                        isBuffer: Buffer.isBuffer(rawBody),
+                        type: typeof rawBody
+                    });
+                    return res.status(400).send('Bad Request: Missing or invalid body');
+                }
+                
                 const isValid = verifyDiscordSignatureWithRawBody(signature, timestamp, rawBody);
                 
                 if (!isValid) {
