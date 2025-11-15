@@ -6148,7 +6148,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                 if (!code || !userId) {
                     return res.status(400).json({ error: 'Code and userId are required' });
                 }
-                const result = await this.compiler.compileShader(code, { userId, name });
+                const result = await this.compiler.compileShader(code, { 
+                    userId, 
+                    name,
+                    database: this.database  // Passer la database pour vérifier le plan et ajouter watermark
+                });
                 if (result.success) {
                     // Sauvegarder le shader dans la base de données
                     const shaderId = await this.database.saveShader({
@@ -6212,7 +6216,11 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                 if (!preset) {
                     return res.status(404).json({ error: 'Preset non trouvé' });
                 }
-                const result = await this.compiler.compileShader(preset.code, { userId, name });
+                const result = await this.compiler.compileShader(preset.code, { 
+                    userId, 
+                    name,
+                    database: this.database  // Passer la database pour vérifier le plan et ajouter watermark
+                });
                 if (result.success) {
                     const shaderId = await this.database.saveShader({
                         code: preset.code,

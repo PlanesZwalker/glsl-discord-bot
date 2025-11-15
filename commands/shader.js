@@ -137,10 +137,11 @@ module.exports = {
             // Utiliser le code nettoyé si disponible
             const codeToCompile = validation.sanitized || shaderCode;
 
-            // Compile shader with textures and user ID for metrics
+            // Compile shader with textures, user ID, and database for watermark check
             const result = await compiler.compileShader(codeToCompile, {
                 textures: textureUrls.length > 0 ? textureUrls : null,
-                userId: interaction.user.id
+                userId: interaction.user.id,
+                database: database  // Passer la database pour vérifier le plan et ajouter watermark
             });
 
             if (!result.success) {

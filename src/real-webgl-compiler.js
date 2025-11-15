@@ -3065,6 +3065,20 @@ class RealWebGLCompiler {
                 // Les frames sont déjà sauvegardées au fur et à mesure
                 console.log(`💾 ${framesToUse.length} frames à utiliser pour le GIF`);
                 
+                // Ajouter watermark pour les utilisateurs gratuits
+                // options.userId et options.database sont passés depuis les commandes
+                if (options.userId && options.database) {
+                    try {
+                        const userPlan = await options.database.getUserPlan(options.userId);
+                        if (userPlan === 'free') {
+                            console.log('💧 Plan Free détecté - Ajout du watermark...');
+                            await Watermark.addWatermarkToFrames(frameDirectory, 'GLSL Bot');
+                        }
+                    } catch (watermarkError) {
+                        console.warn('⚠️ Erreur ajout watermark (continuation sans watermark):', watermarkError.message);
+                    }
+                }
+                
                 // Créer un GIF animé à partir des frames
                 console.log('🎬 Génération du GIF animé...');
                 gifPath = await this.createGifFromFrames(framesToUse, frameDirectory);

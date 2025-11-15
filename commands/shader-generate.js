@@ -106,8 +106,11 @@ module.exports = {
                 return;
             }
 
-            // Compile shader
-            const result = await bot.compiler.compileShader(shaderCode);
+            // Compile shader with database for watermark check
+            const result = await bot.compiler.compileShader(shaderCode, {
+                userId: interaction.user.id,
+                database: bot.database  // Passer la database pour vérifier le plan et ajouter watermark
+            });
 
             if (!result.success) {
                 await interaction.editReply({

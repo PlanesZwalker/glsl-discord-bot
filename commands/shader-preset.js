@@ -83,10 +83,11 @@ module.exports = {
                 return;
             }
 
-            // Compile the shader with preset name and user ID for metrics
+            // Compile the shader with preset name, user ID, and database for watermark check
             const result = await compiler.compileShader(shaderCode, {
                 presetName: presetName,
-                userId: interaction.user.id
+                userId: interaction.user.id,
+                database: database  // Passer la database pour vérifier le plan et ajouter watermark
             });
 
             if (!result.success) {
