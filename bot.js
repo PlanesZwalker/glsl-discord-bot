@@ -5678,80 +5678,119 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                     next();
         });
         
-        // Middleware pour parser le JSON (sans vérification de signature pour l'instant)
-        app.use(express.json());
-        
-        // Route pour les interactions Discord
-        app.post('/discord', async (req, res) => {
-            const { body } = req;
-            console.log('🌐 Requête Discord reçue:', body.type);
-            
-            // Type 1: PING
-            if (body.type === 1) {
-                console.log('➡️ Réponse PONG');
-                return res.send({ type: 1 });
-            }
-            // Type 2: APPLICATION_COMMAND
-            else if (body.type === 2) {
-                const commandName = body.data?.name;
+        // Route pour les interactions Discord avec validation de signature
+        // DOIT être avant express.json() pour capturer le raw body
+        app.post('/discord', express.raw({ type: 'application/json' }), async (req, res) => {
+            try {
+                // Récupérer les en-têtes de signature
+                const signature = req.headers['x-signature-ed25519'];
+                const timestamp = req.headers['x-signature-timestamp'];
                 
-                // Répondre immédiatement à Discord pour éviter le timeout (type 5)
-                res.status(200).send({
-                    type: 5 // DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE
-                });
-                
-                // Exécuter la commande en arrière-plan
-                // handleInteractionFromHTTP gère le verrou et la vérification de duplication
-                this.handleInteractionFromHTTP(body, req, res)
-                    .then(() => console.log(`✅ Traitement en arrière-plan de ${commandName} terminé.`))
-                    .catch(err => console.error(`❌ Erreur traitement en arrière-plan de ${commandName}:`, err));
-            }
-            // Type 4: APPLICATION_COMMAND_AUTOCOMPLETE
-            else if (body.type === 4) {
-                const commandName = body.data?.name;
-                console.log(`🔍 Autocomplete HTTP reçu: ${commandName}`);
-                
-                const command = this.commands.get(commandName);
-                
-                if (command && command.autocomplete) {
-                    let autocompleteResponse = null;
-                    
-                    const mockInteraction = {
-                        commandName: commandName,
-                        options: {
-                            getFocused: () => {
-                                const focused = body.data?.options?.find(opt => opt.focused);
-                                return { value: focused?.value || '' };
-                            }
-                        },
-                        isAutocomplete: () => true,
-                        async respond(options) {
-                            autocompleteResponse = {
-                                type: 8, // APPLICATION_COMMAND_AUTOCOMPLETE_RESULT
-                                data: { choices: options.choices || [] }
-                            };
-                        }
-                    };
-                    
-                    try {
-                        await command.autocomplete(mockInteraction);
-                        if (autocompleteResponse) {
-                            return res.status(200).json(autocompleteResponse);
-                        }
-                    } catch (error) {
-                        console.error(`❌ Erreur lors de l'autocomplete HTTP ${commandName}:`, error);
-                    }
+                // Vérifier que les en-têtes sont présents
+                if (!signature || !timestamp) {
+                    console.error('❌ En-têtes de signature manquants:', {
+                        hasSignature: !!signature,
+                        hasTimestamp: !!timestamp
+                    });
+                    return res.status(401).send('Unauthorized: Missing signature headers');
                 }
                 
-                // Réponse par défaut si aucune commande ou autocomplete
-                return res.status(200).json({ type: 8, data: { choices: [] } });
-            }
-            // Autres types d'interaction
-            else {
-                console.log('➡️ Interaction non gérée:', body.type);
-                return res.status(400).send('Interaction non gérée');
+                // Vérifier la signature avec le raw body
+                const rawBody = req.body; // C'est déjà un Buffer grâce à express.raw()
+                const isValid = verifyDiscordSignatureWithRawBody(signature, timestamp, rawBody);
+                
+                if (!isValid) {
+                    console.error('❌ Signature Discord invalide');
+                    return res.status(401).send('Unauthorized: Invalid signature');
+                }
+                
+                // Parser le body maintenant que la signature est validée
+                let body;
+                try {
+                    body = JSON.parse(rawBody.toString('utf-8'));
+                } catch (parseError) {
+                    console.error('❌ Erreur parsing JSON:', parseError);
+                    return res.status(400).send('Bad Request: Invalid JSON');
+                }
+                
+                console.log('🌐 Requête Discord reçue (signature validée):', body.type);
+                
+                // Type 1: PING
+                if (body.type === 1) {
+                    console.log('➡️ Réponse PONG');
+                    return res.send({ type: 1 });
+                }
+                // Type 2: APPLICATION_COMMAND
+                else if (body.type === 2) {
+                    const commandName = body.data?.name;
+                    
+                    // Répondre immédiatement à Discord pour éviter le timeout (type 5)
+                    res.status(200).send({
+                        type: 5 // DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE
+                    });
+                    
+                    // Exécuter la commande en arrière-plan
+                    // handleInteractionFromHTTP gère le verrou et la vérification de duplication
+                    this.handleInteractionFromHTTP(body, req, res)
+                        .then(() => console.log(`✅ Traitement en arrière-plan de ${commandName} terminé.`))
+                        .catch(err => console.error(`❌ Erreur traitement en arrière-plan de ${commandName}:`, err));
+                }
+                // Type 4: APPLICATION_COMMAND_AUTOCOMPLETE
+                else if (body.type === 4) {
+                    const commandName = body.data?.name;
+                    console.log(`🔍 Autocomplete HTTP reçu: ${commandName}`);
+                    
+                    const command = this.commands.get(commandName);
+                    
+                    if (command && command.autocomplete) {
+                        let autocompleteResponse = null;
+                        
+                        const mockInteraction = {
+                            commandName: commandName,
+                            options: {
+                                getFocused: () => {
+                                    const focused = body.data?.options?.find(opt => opt.focused);
+                                    return { value: focused?.value || '' };
+                                }
+                            },
+                            isAutocomplete: () => true,
+                            async respond(options) {
+                                autocompleteResponse = {
+                                    type: 8, // APPLICATION_COMMAND_AUTOCOMPLETE_RESULT
+                                    data: { choices: options.choices || [] }
+                                };
+                            }
+                        };
+                        
+                        try {
+                            await command.autocomplete(mockInteraction);
+                            if (autocompleteResponse) {
+                                return res.status(200).json(autocompleteResponse);
+                            }
+                        } catch (error) {
+                            console.error(`❌ Erreur lors de l'autocomplete HTTP ${commandName}:`, error);
+                        }
+                    }
+                    
+                    // Réponse par défaut si aucune commande ou autocomplete
+                    return res.status(200).json({ type: 8, data: { choices: [] } });
+                }
+                // Autres types d'interaction
+                else {
+                    console.log('➡️ Interaction non gérée:', body.type);
+                    return res.status(400).send('Interaction non gérée');
+                }
+            } catch (error) {
+                console.error('❌ Erreur lors du traitement de l\'interaction Discord:', error);
+                // Si la réponse n'a pas encore été envoyée, envoyer une erreur
+                if (!res.headersSent) {
+                    return res.status(500).send('Internal Server Error');
+                }
             }
         });
+        
+        // Middleware pour parser le JSON (pour les autres routes)
+        app.use(express.json());
         
         // API pour le tableau de bord web
         app.get('/api/stats', async (req, res) => {
