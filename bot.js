@@ -4804,13 +4804,36 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                     test: async () => {
                                         // Envoyer juste le fichier avec un message texte, sans embed
                                         // Discord affiche mieux les GIFs animés de cette façon
+                                        // Convertir les filePaths en format compatible avec l'API REST
+                                        const fileAttachments = await Promise.all(filePaths.map(async (fp) => {
+                                            let fileData;
+                                            if (fp.path && fs.existsSync(fp.path)) {
+                                                fileData = fs.readFileSync(fp.path);
+                                            } else if (fp.buffer) {
+                                                fileData = fp.buffer;
+                                            } else if (fp.stream) {
+                                                // Lire le stream en buffer
+                                                const chunks = [];
+                                                for await (const chunk of fp.stream) {
+                                                    chunks.push(chunk);
+                                                }
+                                                fileData = Buffer.concat(chunks);
+                                            } else {
+                                                throw new Error(`Impossible de lire le fichier: ${fp.name}`);
+                                            }
+                                            return {
+                                                attachment: fileData,
+                                                name: fp.name || 'animation.gif'
+                                            };
+                                        }));
+                                        
                                         const restPayload = {
                                             content: '🎨 Shader Animation'
                                         };
                                         
                                         await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
                                             body: restPayload,
-                                            files: options.files
+                                            files: fileAttachments
                                         });
                                     }
                                 },
