@@ -95,9 +95,10 @@
 - **Date**: 2025-11-14
 - **Stratégies implémentées** :
   1. **Priorité 1** : `rest.patch_double_edit_workaround` - Double édition avec AttachmentBuilder + embed minimal (workaround bug Discord)
-     - 1ère édition avec l'embed et le fichier
-     - Attendre 500ms pour éviter le rate limit
-     - 2ème édition avec le MÊME contenu (force Discord à afficher l'image)
+     - 1ère édition avec l'embed et le fichier (utiliser AttachmentBuilder originaux)
+     - Attendre 1000ms pour que Discord traite la première édition (augmenté de 500ms)
+     - 2ème édition avec les fichiers lus en Buffer (nouveaux objets) au lieu de réutiliser les mêmes AttachmentBuilder
+     - **Amélioration 2025-11-15**: Lire les fichiers en Buffer pour la 2ème édition pour forcer Discord à traiter à nouveau
      - **Résultat** : ❌ Échec - L'API accepte la requête mais le GIF n'apparaît toujours pas dans Discord
      - **Test du 2025-11-14 19:09** : GIF généré (2318.63 KB, 60 frames), stratégie réussit, mais GIF non visible
   2. **Priorité 2** : `rest.patch_with_attachments_payload` - Utilise `attachments` dans payload_json (format Discord API)

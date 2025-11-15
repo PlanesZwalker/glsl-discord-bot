@@ -181,31 +181,30 @@ export const authOptions = {
             const callbackUrlObj = new URL(decodedCallbackUrl, baseUrl)
             if (callbackUrlObj.origin === baseUrl) {
               console.log('Auth Redirect - Vers callbackUrl (absolu):', decodedCallbackUrl)
-              return decodedCallbackUrl
+              // Nettoyer le callbackUrl de l'URL de destination pour éviter les boucles
+              callbackUrlObj.searchParams.delete('callbackUrl')
+              return callbackUrlObj.toString()
             }
           } catch (e) {
             // Si c'est une URL relative, la valider et la retourner
             if (decodedCallbackUrl.startsWith('/') && decodedCallbackUrl !== '/') {
               console.log('Auth Redirect - Vers callbackUrl (relatif):', decodedCallbackUrl)
-              return decodedCallbackUrl
+              // Retourner l'URL relative sans query params pour éviter les boucles
+              const cleanUrl = decodedCallbackUrl.split('?')[0]
+              return cleanUrl
             }
           }
         }
         
-        // PRIORITÉ 2: Si l'URL est la page d'accueil avec callbackUrl, rediriger vers le callbackUrl
+        // PRIORITÉ 2: Si l'URL est la page d'accueil, NE PAS rediriger automatiquement
+        // Laisser le composant Hero gérer la redirection côté client pour éviter les boucles
         if (urlObj.pathname === '/') {
-          // Si callbackUrl est présent mais n'a pas été utilisé ci-dessus, l'utiliser
-          if (callbackUrl) {
-            const decodedCallbackUrl = decodeURIComponent(callbackUrl)
-            if (decodedCallbackUrl.startsWith('/') && decodedCallbackUrl !== '/') {
-              console.log('Auth Redirect - Page d\'accueil avec callbackUrl, redirection directe vers:', decodedCallbackUrl)
-              return decodedCallbackUrl
-            }
-          }
-          // Si pas de callbackUrl, laisser l'utilisateur sur la page d'accueil (ne pas rediriger automatiquement)
-          // Cela évite les boucles de redirection
-          console.log('Auth Redirect - Page d\'accueil sans callbackUrl, rester sur /')
-          return urlObj.pathname + urlObj.hash
+          // Si callbackUrl est présent, le composant Hero le gérera côté client
+          // Ne pas rediriger ici pour éviter les conflits
+          console.log('Auth Redirect - Page d\'accueil, laisser Hero gérer la redirection')
+          // Retourner l'URL sans callbackUrl pour éviter les boucles
+          const cleanUrl = new URL(urlObj.pathname, baseUrl)
+          return cleanUrl.toString()
         }
       } catch (e) {
         console.error('Auth Redirect - Erreur parsing URL:', e)
@@ -215,16 +214,18 @@ export const authOptions = {
       if (url.startsWith(baseUrl)) {
         const urlObj = new URL(url, baseUrl)
         // Retourner l'URL sans les query params pour éviter les boucles
-        // Ne pas rediriger automatiquement / vers /dashboard ici
+        urlObj.searchParams.delete('callbackUrl')
         return urlObj.pathname + urlObj.hash
       }
       
       // PRIORITÉ 4: Si l'URL est relative, la construire
       if (url.startsWith('/')) {
-        return `${baseUrl}${url}`
+        const urlObj = new URL(url, baseUrl)
+        urlObj.searchParams.delete('callbackUrl')
+        return urlObj.pathname + urlObj.hash
       }
       
-      // Par défaut, rediriger vers /dashboard
+      // Par défaut, rediriger vers /dashboard (seulement après OAuth callback)
       console.log('Auth Redirect - Par défaut vers /dashboard')
       return `${baseUrl}/dashboard`
     },

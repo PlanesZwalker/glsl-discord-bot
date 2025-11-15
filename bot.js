@@ -4800,19 +4800,39 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                             embeds: minimalEmbed
                                         };
                                         
-                                        // 1ère édition avec l'embed et le fichier
+                                        // 1ère édition avec l'embed et le fichier (utiliser AttachmentBuilder originaux)
+                                        console.log('🔄 Double édition - 1ère édition avec AttachmentBuilder');
                                         await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
                                             body: restPayload,
                                             files: options.files
                                         });
                                         
-                                        // Attendre 500ms pour éviter le rate limit
-                                        await new Promise(resolve => setTimeout(resolve, 500));
+                                        // Attendre 1000ms pour que Discord traite la première édition
+                                        // Augmenté de 500ms à 1000ms pour donner plus de temps à Discord
+                                        await new Promise(resolve => setTimeout(resolve, 1000));
                                         
-                                        // 2ème édition avec le MÊME contenu (force Discord à afficher l'image)
+                                        // 2ème édition avec les fichiers lus en Buffer (nouveaux objets)
+                                        // Lire les fichiers en Buffer pour créer de nouveaux objets au lieu de réutiliser les mêmes
+                                        console.log('🔄 Double édition - 2ème édition avec fichiers en Buffer');
+                                        const fileBuffers = await Promise.all(filePaths.map(async (fp) => {
+                                            let fileData;
+                                            if (fp.path && fs.existsSync(fp.path)) {
+                                                fileData = fs.readFileSync(fp.path);
+                                            } else if (fp.buffer) {
+                                                fileData = fp.buffer;
+                                            } else {
+                                                throw new Error(`Impossible de lire le fichier: ${fp.name}`);
+                                            }
+                                            return {
+                                                attachment: fileData,
+                                                name: fp.name || fileName
+                                            };
+                                        }));
+                                        
+                                        // 2ème édition avec les fichiers en Buffer (force Discord à traiter à nouveau)
                                         await rest.patch(Routes.webhookMessage(applicationId, interactionToken), {
                                             body: restPayload,
-                                            files: options.files
+                                            files: fileBuffers
                                         });
                                     }
                                 },

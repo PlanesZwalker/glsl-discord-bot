@@ -43,13 +43,18 @@ export function Hero() {
       
       // Vérifier que decodedUrl est valide et différent de la page actuelle
       if (decodedUrl && decodedUrl !== '/' && decodedUrl.startsWith('/')) {
-        // Utiliser replace pour éviter d'ajouter à l'historique et nettoyer le callbackUrl
+        // Nettoyer le callbackUrl de l'URL AVANT la redirection pour éviter les boucles
+        const newUrl = new URL(window.location.href)
+        newUrl.searchParams.delete('callbackUrl')
+        window.history.replaceState({}, '', newUrl.toString())
+        
+        // Utiliser replace pour éviter d'ajouter à l'historique
         router.replace(decodedUrl)
         
         // Fallback avec window.location si router ne fonctionne pas après 200ms
         setTimeout(() => {
-          // Vérifier qu'on est toujours sur la page d'accueil avec callbackUrl
-          if (window.location.pathname === '/' && window.location.search.includes('callbackUrl')) {
+          // Vérifier qu'on est toujours sur la page d'accueil
+          if (window.location.pathname === '/') {
             console.log('Hero - Fallback: redirection directe avec window.location')
             window.location.replace(decodedUrl) // Utiliser replace au lieu de href pour éviter l'historique
           }
