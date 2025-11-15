@@ -4871,52 +4871,15 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
                                             throw new Error('Aucun fichier valide à envoyer');
                                         }
                                         
-                                        // 2. Déclarer les attachments dans le payload
-                                        const attachmentsArray = filesWithBuffers.map((file, index) => ({
-                                            id: index,
-                                            filename: file.name,
-                                            description: 'Shader animation GIF'
-                                        }));
-                                        
-                                        // 3. Créer un EMBED qui affiche le GIF directement
-                                        const fileName = filesWithBuffers[0].name || 'animation.gif';
-                                        
-                                        // Utiliser les embeds existants s'ils existent, sinon créer un embed par défaut
-                                        let finalEmbeds;
-                                        if (embedsJson && embedsJson.length > 0) {
-                                            // Si des embeds existent, s'assurer qu'ils ont bien l'image.url
-                                            finalEmbeds = embedsJson.map(embed => {
-                                                // Si l'embed n'a pas d'image, l'ajouter
-                                                if (!embed.image || !embed.image.url) {
-                                                    embed.image = { url: `attachment://${fileName}` };
-                                                }
-                                                return embed;
-                                            });
-                                        } else {
-                                            // Créer un embed par défaut
-                                            finalEmbeds = [{
-                                                title: '🎨 Shader Compilé!',
-                                                description: 'Votre shader a été compilé avec succès',
-                                                color: 0x9B59B6,
-                                                image: {
-                                                    url: `attachment://${fileName}`  // ← Affichage direct du GIF
-                                                },
-                                                footer: {
-                                                    text: 'ShaderBot • Généré en quelques secondes'
-                                                },
-                                                timestamp: new Date().toISOString()
-                                            }];
-                                        }
-                                        
-                                        // 4. Payload final avec embeds ET attachments
+                                        // 2. Payload final SANS embed - juste le GIF directement
+                                        // L'utilisateur veut voir SEULEMENT le GIF animé, pas de texte ni embed
                                         const payload = {
-                                            embeds: finalEmbeds,
-                                            attachments: attachmentsArray  // ← Déclaration des fichiers
+                                            content: ' '  // Espace minimal requis par Discord
                                         };
                                         
                                         console.log(`📤 Payload: ${filesWithBuffers.length} fichier(s) - GIF uniquement, pas d'embed`);
                                         
-                                        // 4. Envoyer avec rest.patch - SEULEMENT le GIF, pas d'embed
+                                        // 3. Envoyer avec rest.patch - SEULEMENT le GIF, pas d'embed
                                         await rest.patch(
                                             Routes.webhookMessage(applicationId, interactionToken, '@original'),
                                             {
